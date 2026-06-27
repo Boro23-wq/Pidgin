@@ -12,9 +12,18 @@ export async function POST(request: Request) {
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { summaryId } = await request.json();
+    const body = await request.json();
+
+    // Direct domain blocking (used from the scan/selection modal before summaries exist)
+    if (body.domain) {
+      await addBlockedSender(body.domain, userId);
+      return Response.json({ blocked: body.domain });
+    }
+
+    // Existing behavior: block by summaryId (looks up domain from the summary)
+    const { summaryId } = body;
     if (!summaryId) {
-      return Response.json({ error: "summaryId required" }, { status: 400 });
+      return Response.json({ error: "summaryId or domain required" }, { status: 400 });
     }
 
     const summary = await getSummaryById(summaryId, userId);

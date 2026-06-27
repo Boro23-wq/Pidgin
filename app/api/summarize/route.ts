@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
-import { fetchNewsletterEmails } from "@/lib/gmail";
-import { summarizeNewsletter } from "@/lib/claude";
+import { fetchNewsletterEmails, getEmailById } from "@/lib/gmail";
+import { extractNewsletterStories } from "@/lib/claude";
 import { getValidTokens } from "@/lib/tokens";
 import {
   saveSummary,
@@ -9,7 +9,9 @@ import {
   getBlockedDomains,
 } from "@/lib/supabase";
 
-export async function POST() {
+const BATCH_SIZE = 3;
+
+export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,6 +25,14 @@ export async function POST() {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
 
       try {
+        let selectedEmailIds: string[] | undefined;
+        try {
+          const body = await req.json();
+          selectedEmailIds = Array.isArray(body.emailIds) ? body.emailIds : undefined;
+        } catch {
+          // no body
+        }
+
         const tokens = await getValidTokens(userId);
         if (!tokens) {
           send({ type: "error", message: "Gmail not connected. Please connect your Gmail account." });
@@ -30,20 +40,26 @@ export async function POST() {
           return;
         }
 
-        const deletedCount = await deleteOldSummaries(userId, 90);
+        const deletedCount = await deleteOldSummaries(userId, 7);
         const blockedDomains = await getBlockedDomains(userId);
-        console.log("[summarize] userId:", userId, "blockedDomains:", blockedDomains);
 
-        const since = new Date();
-        since.setDate(since.getDate() - 30);
-        const emails = await fetchNewsletterEmails(
-          tokens.accessToken,
-          tokens.refreshToken,
-          since,
-          10,
-          blockedDomains
-        );
-        console.log("[summarize] emails found:", emails.length, emails.map(e => e.subject));
+        let emails;
+        if (selectedEmailIds?.length) {
+          const results = await Promise.all(
+            selectedEmailIds.map((id) => getEmailById(tokens.accessToken, tokens.refreshToken, id))
+          );
+          emails = results.filter((e) => e !== null);
+        } else {
+          const since = new Date();
+          since.setHours(0, 0, 0, 0);
+          emails = await fetchNewsletterEmails(
+            tokens.accessToken,
+            tokens.refreshToken,
+            since,
+            10,
+            blockedDomains
+          );
+        }
 
         if (emails.length === 0) {
           send({ type: "complete", processedCount: 0, skippedCount: 0, deletedCount });
@@ -55,50 +71,72 @@ export async function POST() {
 
         let processedCount = 0;
         let skippedCount = 0;
+        let completedCount = 0;
 
-        for (let i = 0; i < emails.length; i++) {
-          const email = emails[i];
-          send({ type: "progress", current: i + 1, total: emails.length, title: email.subject });
+        // Process in parallel batches to speed things up
+        for (let i = 0; i < emails.length; i += BATCH_SIZE) {
+          const chunk = emails.slice(i, i + BATCH_SIZE);
 
-          try {
-            const alreadyProcessed = await isEmailProcessed(email.id, userId);
-            if (alreadyProcessed) {
-              skippedCount++;
-              continue;
-            }
+          await Promise.allSettled(
+            chunk.map(async (email) => {
+              try {
+                const alreadyProcessed = await isEmailProcessed(email.id, userId);
+                if (alreadyProcessed) {
+                  skippedCount++;
+                  return;
+                }
 
-            console.log("[summarize] calling Claude for:", email.subject);
-            const summaryData = await summarizeNewsletter(email.body, email.subject);
-            console.log("[summarize] Claude done, saving to DB...");
+                const stories = await extractNewsletterStories(
+                  email.body,
+                  email.subject,
+                  email.links
+                );
 
-            await saveSummary(
-              {
-                newsletter_title: email.subject,
-                original_content: email.body,
-                summary: summaryData.summary,
-                simple_explanation: summaryData.simpleExplanation,
-                key_points: summaryData.keyPoints,
-                category: summaryData.category,
-                linkedin_post: "",
-                twitter_post: "",
-                source_email: email.from,
-                source_email_id: email.id,
-                source_url: email.source_url,
-                processed_date: new Date().toISOString().split("T")[0],
-                is_bookmarked: false,
-                is_read: false,
-                user_id: userId,
-              },
-              userId
-            );
+                if (stories.length === 0) {
+                  send({ type: "item-error", title: email.subject, message: "No stories extracted" });
+                  return;
+                }
 
-            processedCount++;
-            console.log("[summarize] saved:", email.subject);
-            send({ type: "saved", title: email.subject });
-          } catch (err) {
-            console.error("[summarize] item-error for", email.subject, err);
-            send({ type: "item-error", title: email.subject, message: String(err) });
-          }
+                for (const story of stories) {
+                  const saved = await saveSummary(
+                    {
+                      newsletter_title: story.title,
+                      original_content: email.body,
+                      summary: story.summary,
+                      simple_explanation: story.simpleExplanation,
+                      key_points: story.keyPoints,
+                      category: story.category,
+                      linkedin_post: "",
+                      twitter_post: "",
+                      source_email: email.from,
+                      source_email_id: email.id,
+                      source_url: story.sourceUrl || email.source_url,
+                      topic_key: story.topicKey || null,
+                      processed_date: email.internalDate
+                        ? new Date(email.internalDate).toISOString().split("T")[0]
+                        : new Date().toISOString().split("T")[0],
+                      is_bookmarked: false,
+                      is_read: false,
+                      user_id: userId,
+                    },
+                    userId
+                  );
+                  if (saved) processedCount++;
+                }
+              } catch (err) {
+                console.error("[summarize] email error:", email.subject, err);
+                send({ type: "item-error", title: email.subject, message: String(err) });
+              } finally {
+                completedCount++;
+                send({
+                  type: "progress",
+                  current: completedCount,
+                  total: emails.length,
+                  title: email.subject,
+                });
+              }
+            })
+          );
         }
 
         send({ type: "complete", processedCount, skippedCount, deletedCount });

@@ -9,6 +9,8 @@ Pidgin connects to your Gmail, filters out noise, and uses Claude AI to summaris
 - Gmail read-only OAuth — connect in 30 seconds
 - AI summaries — Claude distils each issue into key points and a plain-English explanation
 - Social posts — one-click LinkedIn and X/Twitter drafts from any summary
+- Read / unread tracking — mark articles read; filter to unread only
+- Two-step sync — scan inbox first, pick which newsletters to import, then summarise
 - Search & filters — full-text search, category filter, source filter, date range, bookmarks
 - Block senders — mute any newsletter permanently
 - Light / dark mode
@@ -89,8 +91,10 @@ app/
   sign-up/                  # Custom Clerk sign-up
   api/
     auth/                   # Gmail OAuth flow
+    scan/                   # Inbox scan — metadata only, returns newsletter previews
     summarize/              # Fetch + summarise newsletters (SSE stream)
-    summaries/              # List summaries
+    summaries/              # List / delete summaries
+    dismiss/                # Dismiss a newsletter without importing it
     generate-post/          # Generate social post on demand
     update-summary/         # Bookmark / mark read
     block-sender/           # Block a newsletter sender

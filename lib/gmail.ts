@@ -15,8 +15,20 @@ export interface EmailData {
   subject: string;
   from: string;
   body: string;
+  links: Array<{ text: string; url: string }>;
   internalDate: number;
   source_url: string;
+}
+
+export interface EmailPreview {
+  id: string;
+  subject: string;
+  from: string;
+  fromName: string;
+  fromEmail: string;
+  domain: string;
+  receivedAt: string; // ISO timestamp
+  flagged?: boolean; // set by server-side Claude classification in scan route
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +77,47 @@ function extractBody(payload: any): string {
   }
 
   return "";
+}
+
+// Extract raw HTML from a MIME payload tree (first text/html part found).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractRawHtml(payload: any): string {
+  if (!payload) return "";
+  if (payload.body?.data && payload.mimeType === "text/html") {
+    return Buffer.from(payload.body.data, "base64").toString("utf-8");
+  }
+  if (!payload.parts) return "";
+  for (const part of payload.parts) {
+    if (part.mimeType === "text/html" && part.body?.data) {
+      return Buffer.from(part.body.data, "base64").toString("utf-8");
+    }
+    const nested = extractRawHtml(part);
+    if (nested) return nested;
+  }
+  return "";
+}
+
+// Extract editorial <a href> links from raw HTML, filtering out tracking/social/unsubscribe noise.
+function extractLinks(html: string): Array<{ text: string; url: string }> {
+  const links: Array<{ text: string; url: string }> = [];
+  const re = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const url = m[1].trim();
+    const text = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!url.startsWith("http")) continue;
+    if (
+      /unsubscribe|manage[\w-]*preference|r\.email|open\.email|mailchi\.mp|list-manage|cdn\.|cloudfront|amazonaws|instagram\.com\/|twitter\.com\/|facebook\.com\/|linkedin\.com\/company|youtube\.com\/channel|mailto:/i.test(
+        url
+      )
+    )
+      continue;
+    if (text.length < 3) continue;
+    links.push({ text, url });
+  }
+  // Dedupe by URL, keep order, cap at 40
+  const seen = new Set<string>();
+  return links.filter((l) => (seen.has(l.url) ? false : seen.add(l.url) && true)).slice(0, 40);
 }
 
 function stripHtml(html: string): string {
@@ -157,6 +210,15 @@ function extractSourceUrl(
   return domain ? `https://${domain}` : "";
 }
 
+function parseFrom(from: string): { fromName: string; fromEmail: string; domain: string } {
+  const nameMatch = from.match(/^(.+?)\s*</);
+  const emailMatch = from.match(/<([^>]+)>/) || from.match(/(\S+@\S+)/);
+  const fromEmail = emailMatch?.[1] ?? from;
+  const fromName = nameMatch?.[1]?.trim().replace(/^["']|["']$/g, "") ?? fromEmail.split("@")[0];
+  const domain = fromEmail.split("@")[1]?.replace(/[>)\s]+$/, "") ?? "";
+  return { fromName, fromEmail, domain };
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -210,11 +272,13 @@ export async function fetchNewsletterEmails(
       if (!newsletter) continue;
       if (body.length < 100) continue;
 
+      const rawHtml = extractRawHtml(msg.data.payload);
       emailData.push({
         id: message.id!,
         subject,
         from,
-        body: body.substring(0, 6000),
+        body: body.substring(0, 8000),
+        links: extractLinks(rawHtml),
         internalDate,
         source_url: extractSourceUrl(headers, from),
       });
@@ -224,5 +288,102 @@ export async function fetchNewsletterEmails(
   } catch (error) {
     console.error("Error fetching emails:", error);
     throw error;
+  }
+}
+
+// Lightweight metadata-only fetch — no body download, fast.
+// Used by the scan phase to show the selection modal before Claude processing.
+export async function fetchNewsletterMetadata(
+  accessToken: string,
+  refreshToken: string,
+  sinceDate?: Date,
+  maxResults?: number,
+  blockedDomains: string[] = []
+): Promise<EmailPreview[]> {
+  const gmail = createGmailClient(accessToken, refreshToken);
+
+  try {
+    let query = "category:promotions OR category:updates";
+    if (sinceDate) {
+      const dateStr = sinceDate.toISOString().split("T")[0];
+      query += ` after:${dateStr}`;
+    }
+
+    const listMax = maxResults ? Math.max(maxResults * 8, 60) : 100;
+    const res = await gmail.users.messages.list({ userId: "me", q: query, maxResults: listMax });
+    const messages = res.data.messages || [];
+    console.log("[gmail/scan] query:", query, "| candidates:", messages.length);
+
+    const previews: EmailPreview[] = [];
+
+    for (const message of messages) {
+      if (maxResults && previews.length >= maxResults) break;
+
+      const msg = await gmail.users.messages.get({
+        userId: "me",
+        id: message.id!,
+        format: "metadata",
+        metadataHeaders: ["Subject", "From", "List-Unsubscribe", "List-Archive"],
+      });
+
+      const headers = msg.data.payload?.headers || [];
+      const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
+      const from = headers.find((h) => h.name === "From")?.value || "Unknown";
+      const internalDate = parseInt(msg.data.internalDate || "0");
+
+      if (!isLikelyNewsletter(from, subject, headers, blockedDomains)) continue;
+
+      const { fromName, fromEmail, domain } = parseFrom(from);
+      previews.push({
+        id: message.id!,
+        subject,
+        from,
+        fromName,
+        fromEmail,
+        domain,
+        receivedAt: new Date(internalDate).toISOString(),
+      });
+    }
+
+    console.log("[gmail/scan] newsletters found:", previews.length);
+    return previews;
+  } catch (error) {
+    console.error("Error fetching newsletter metadata:", error);
+    throw error;
+  }
+}
+
+// Fetch a single email's full content by Gmail message ID.
+// Used during the import phase to fetch only the emails the user selected.
+export async function getEmailById(
+  accessToken: string,
+  refreshToken: string,
+  id: string
+): Promise<EmailData | null> {
+  const gmail = createGmailClient(accessToken, refreshToken);
+
+  try {
+    const msg = await gmail.users.messages.get({ userId: "me", id, format: "full" });
+
+    const headers = msg.data.payload?.headers || [];
+    const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
+    const from = headers.find((h) => h.name === "From")?.value || "Unknown";
+    const internalDate = parseInt(msg.data.internalDate || "0");
+    const body = extractBody(msg.data.payload);
+    if (body.length < 100) return null;
+
+    const rawHtml = extractRawHtml(msg.data.payload);
+    return {
+      id,
+      subject,
+      from,
+      body: body.substring(0, 8000),
+      links: extractLinks(rawHtml),
+      internalDate,
+      source_url: extractSourceUrl(headers, from),
+    };
+  } catch (error) {
+    console.error("[gmail] getEmailById error:", id, error);
+    return null;
   }
 }

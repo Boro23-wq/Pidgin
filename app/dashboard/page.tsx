@@ -4,14 +4,13 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Search,
   RefreshCw,
+  ArrowDownToLine,
+  Download,
   Sparkles,
   Linkedin,
-  Twitter,
   Copy,
   CheckCircle2,
-  AlertCircle,
   Loader2,
-  Zap,
   Bookmark,
   BookmarkCheck,
   Ban,
@@ -19,13 +18,27 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Mail,
+  MailOpen,
+  Eye,
+  EyeOff,
+  SlidersHorizontal,
   LayoutGrid,
+  Inbox,
 } from "lucide-react";
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.738l7.737-8.817-8.157-10.683H8.06l4.265 5.633L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@clerk/nextjs";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CustomUserButton } from "@/components/custom-user-button";
 
@@ -35,6 +48,7 @@ import { CustomUserButton } from "@/components/custom-user-button";
 interface Summary {
   id: string;
   created_at: string;
+  processed_date: string;
   newsletter_title: string;
   simple_explanation: string;
   summary: string;
@@ -42,16 +56,29 @@ interface Summary {
   linkedin_post: string;
   twitter_post: string;
   source_email: string;
+  source_email_id: string;
   source_url: string;
   category: string;
   is_bookmarked: boolean;
   is_read: boolean;
 }
 
+interface EmailPreview {
+  id: string;
+  subject: string;
+  from: string;
+  fromName: string;
+  fromEmail: string;
+  domain: string;
+  receivedAt: string;
+  flagged?: boolean;
+}
+
 interface SyncStats {
   processedCount: number;
   skippedCount: number;
   deletedCount: number;
+  nothingNew?: boolean;
 }
 
 interface SyncProgress {
@@ -62,7 +89,7 @@ interface SyncProgress {
 
 type Platform = "linkedin" | "twitter";
 type SortOption = "newest" | "oldest" | "source" | "category";
-type DateFilter = "7d" | "30d" | "90d" | "all";
+type DateFilter = "7d" | "all";
 
 // ---------------------------------------------------------------------------
 // Category config
@@ -81,15 +108,15 @@ const CATEGORIES = [
 ] as const;
 
 const CAT_STYLE: Record<string, string> = {
-  "AI & ML":  "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
-  "Tech":     "bg-blue-500/15 text-blue-400 border-blue-500/25",
-  "Science":  "bg-cyan-500/15 text-cyan-400 border-cyan-500/25",
-  "Business": "bg-amber-500/15 text-amber-400 border-amber-500/25",
-  "Finance":  "bg-green-500/15 text-green-400 border-green-500/25",
-  "Politics": "bg-red-500/15 text-red-400 border-red-500/25",
-  "Health":   "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  "Startups": "bg-purple-500/15 text-purple-400 border-purple-500/25",
-  "Other":    "bg-zinc-500/15 text-zinc-400 border-zinc-500/25",
+  "AI & ML": "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
+  Tech: "bg-blue-500/15 text-blue-400 border-blue-500/25",
+  Science: "bg-cyan-500/15 text-cyan-400 border-cyan-500/25",
+  Business: "bg-amber-500/15 text-amber-400 border-amber-500/25",
+  Finance: "bg-green-500/15 text-green-400 border-green-500/25",
+  Politics: "bg-red-500/15 text-red-400 border-red-500/25",
+  Health: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+  Startups: "bg-purple-500/15 text-purple-400 border-purple-500/25",
+  Other: "bg-zinc-500/15 text-zinc-400 border-zinc-500/25",
 };
 
 // ---------------------------------------------------------------------------
@@ -116,6 +143,13 @@ function formatDate(dateStr: string) {
   });
 }
 
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function extractSenderName(email: string) {
   const match = email.match(/^(.+?)\s*</);
   if (match) return match[1].trim().replace(/^["']|["']$/g, "");
@@ -128,12 +162,135 @@ function extractSenderDomain(email: string): string {
   return addr.split("@")[1]?.replace(/[>)]+$/, "") ?? "";
 }
 
+// Heuristic: returns true for emails that are clearly NOT newsletters
+function shouldFlagEmail(n: EmailPreview): boolean {
+  // Trust server-side Claude Haiku classification when available
+  if (n.flagged !== undefined) return n.flagged;
+
+  // Fallback regex — runs only when server didn't classify (timeout / error)
+  const from = (n.from + " " + n.fromEmail + " " + n.domain).toLowerCase();
+  const subject = n.subject.toLowerCase();
+
+  // Sender-based
+  if (/no.?reply|donotreply|do.not.reply/.test(from)) return true;
+  if (
+    /workday|greenhouse\.io|lever\.co|ashbyhq|smartrecruiters|icims|taleo|myworkday/.test(
+      from,
+    )
+  )
+    return true;
+  if (
+    /slack\.com|github\.com|gitlab\.com|atlassian\.net|notion\.so|linear\.app|asana\.com|trello\.com|figma\.com/.test(
+      from,
+    )
+  )
+    return true;
+  if (
+    /bestbuy|best.?buy|walmart|target\.com|amazon\.com|homedepot|kohls|macys/.test(
+      from,
+    )
+  )
+    return true;
+  if (
+    /topresume|resumelab|ziprecruiter|monster\.com|indeed\.com|glassdoor|adzuna|handshake/.test(
+      from,
+    )
+  )
+    return true;
+  if (/inkind|eventtickets|ticketmaster|eventbrite|seatgeek|stubhub/.test(from))
+    return true;
+  if (/airtable|notion\.so|monday\.com|clickup|basecamp|asana\.com/.test(from))
+    return true;
+  if (
+    /pacha|1oak|lavo|marquee|tao|omnia|hakkasan|drai|xe|nightclub|venue/.test(
+      from,
+    )
+  )
+    return true;
+
+  // Subject-based
+  if (
+    /application.*received|applied.*position|your application|job alert|interview.*scheduled|application for .*(engineer|developer|manager|analyst|designer)/.test(
+      subject,
+    )
+  )
+    return true;
+  if (
+    /resume review|free resume|your resume|career coach|dream job|great fit with|could be a (great )?fit/.test(
+      subject,
+    )
+  )
+    return true;
+  if (
+    /\d+%\s*(off|bonus|discount)|weekend only|flash sale|save big|just what your inbox|getting started|haven.?t used/.test(
+      subject,
+    )
+  )
+    return true;
+  if (
+    /verify your|confirm your email|password reset|security alert|sign.?in attempt|unusual.*activity/.test(
+      subject,
+    )
+  )
+    return true;
+  if (
+    /order confirm|your receipt|your invoice|payment confirm|shipping confirm|delivery confirm/.test(
+      subject,
+    )
+  )
+    return true;
+  if (
+    /tickets? (for|to)|tours? coming|coming to your area|tonight at|celebrate .*(pride|nye|halloween)|party guide/.test(
+      subject,
+    )
+  )
+    return true;
+  if (
+    /you.?re invited|join us (tonight|this|for)|rsvp|save the date/.test(
+      subject,
+    )
+  )
+    return true;
+
+  return false;
+}
+
+const SCAN_SENTENCES = [
+  "Looking for newsletters…",
+  "Sorting signal from noise…",
+  "Flagging the job alerts (you're welcome)…",
+  "Finding what's actually worth reading…",
+  "Separating newsletters from the clutter…",
+  "Almost there, hold tight…",
+];
+
 function getCategoryStyle(cat: string) {
   return CAT_STYLE[cat] ?? CAT_STYLE["Other"];
 }
 
-function twitterShareUrl(text: string) {
-  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+function xShareUrl(text: string) {
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}`;
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function dateSectionLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "TODAY";
+  if (d.toDateString() === yesterday.toDateString()) return "YESTERDAY";
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function dateFilterCutoff(filter: DateFilter): Date | null {
@@ -142,6 +299,645 @@ function dateFilterCutoff(filter: DateFilter): Date | null {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d;
+}
+
+// ---------------------------------------------------------------------------
+// Sync button
+// ---------------------------------------------------------------------------
+function SyncButton({
+  onScan,
+  scanning,
+  disabled,
+}: {
+  onScan: () => void;
+  scanning: boolean;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      onClick={onScan}
+      disabled={disabled || scanning}
+      className="flex-shrink-0 h-9 px-4 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 text-sm font-medium transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {scanning ? (
+        <span className="w-4 h-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin flex-shrink-0" />
+      ) : (
+        <ArrowDownToLine className="w-4 h-4 flex-shrink-0" />
+      )}
+      <span>{scanning ? "Scanning…" : "Sync inbox"}</span>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Premium import progress overlay
+// ---------------------------------------------------------------------------
+const SECS_PER_BATCH = 65;
+const IMPORT_BATCH_SIZE = 3;
+
+function SyncOverlay({
+  scanning,
+  importing,
+  progress,
+  stats,
+  error,
+  onDismiss,
+  onCancel,
+}: {
+  scanning: boolean;
+  importing: boolean;
+  progress: SyncProgress | null;
+  stats: SyncStats | null;
+  error: string | null;
+  onDismiss: () => void;
+  onCancel?: () => void;
+}) {
+  const [sentenceIdx, setSentenceIdx] = useState(0);
+  const startTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!scanning) { setSentenceIdx(0); return; }
+    const t = setInterval(() => setSentenceIdx((i) => (i + 1) % SCAN_SENTENCES.length), 2600);
+    return () => clearInterval(t);
+  }, [scanning]);
+
+  useEffect(() => {
+    if (importing && !startTimeRef.current) startTimeRef.current = Date.now();
+    if (!importing) startTimeRef.current = null;
+  }, [importing]);
+
+  const show = scanning || importing || !!stats || !!error;
+  if (!show) return null;
+
+  const pct = progress ? Math.round((progress.current / progress.total) * 100) : 0;
+
+  // ETA: remaining batches × avg seconds per batch
+  const remaining = progress ? progress.total - progress.current : 0;
+  const batchesLeft = Math.ceil(remaining / IMPORT_BATCH_SIZE);
+  const etaSecs = batchesLeft * SECS_PER_BATCH;
+  const etaLabel =
+    progress && progress.current === 0 && etaSecs > 0
+      ? `~${Math.round(etaSecs / 60)} min`
+      : etaSecs > 90
+        ? `~${Math.round(etaSecs / 60)} min left`
+        : etaSecs > 10
+          ? `~${etaSecs}s left`
+          : null;
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={stats || error ? onDismiss : undefined}
+      />
+      <motion.div
+        className="relative z-10 w-full max-w-[300px] rounded-2xl border border-white/[0.07] px-6 py-6"
+        style={{ background: "hsl(240 10% 7%)" }}
+        initial={{ scale: 0.96, opacity: 0, y: 8 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.96, opacity: 0, y: 4 }}
+        transition={{ type: "spring", damping: 28, stiffness: 380 }}
+      >
+        {error ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+              <p className="text-sm font-medium">Something went wrong</p>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-[18px]">{error}</p>
+            <button onClick={onDismiss} className="pl-[18px] text-xs text-primary font-medium">Dismiss</button>
+          </div>
+        ) : stats ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+            <div className="flex items-center gap-2.5">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.05 }}
+                className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"
+              />
+              <p className="text-sm font-medium">
+                {stats.nothingNew
+                  ? "You're all caught up"
+                  : stats.processedCount > 0
+                    ? `${stats.processedCount} ${stats.processedCount === 1 ? "story" : "stories"} added`
+                    : "All done"}
+              </p>
+            </div>
+            {stats.nothingNew ? (
+              <p className="text-xs text-muted-foreground pl-[18px]">No newsletters arrived yet today</p>
+            ) : stats.skippedCount > 0 ? (
+              <p className="text-xs text-muted-foreground pl-[18px]">{stats.skippedCount} already in your digest</p>
+            ) : null}
+            <div className="pl-[18px]">
+              <button onClick={onDismiss} className="text-xs text-primary font-medium">
+                {stats.nothingNew ? "Dismiss" : "View stories →"}
+              </button>
+            </div>
+          </motion.div>
+        ) : scanning ? (
+          /* ── Scan phase ── */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium">Scanning your inbox</p>
+              {onCancel && (
+                <button
+                  onClick={onCancel}
+                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors flex-shrink-0"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+            {/* shimmer email rows */}
+            <div className="space-y-2">
+              {([80, 62, 72] as const).map((widthPct, i) => (
+                <div
+                  key={i}
+                  className="h-[3px] rounded-full bg-white/[0.06] overflow-hidden"
+                  style={{ width: `${widthPct}%` }}
+                >
+                  <motion.div
+                    className="h-full w-full"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)",
+                    }}
+                    animate={{ x: ["-100%", "200%"] }}
+                    transition={{
+                      duration: 1.8,
+                      delay: i * 0.35,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="overflow-hidden" style={{ minHeight: "2rem" }}>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={sentenceIdx}
+                  className="text-xs text-muted-foreground/60 leading-relaxed"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.35, ease: "easeOut" }}
+                >
+                  {SCAN_SENTENCES[sentenceIdx]}
+                </motion.p>
+              </AnimatePresence>
+            </div>
+          </div>
+        ) : (
+          /* ── Import phase ── */
+          <div className="space-y-5">
+            {/* header */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-0.5">
+                <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest font-medium">
+                  Importing
+                </p>
+                <p className="text-xl font-semibold tabular-nums">
+                  {progress
+                    ? <><span className="text-primary">{progress.current}</span> of {progress.total}</>
+                    : "—"}
+                </p>
+              </div>
+              {etaLabel && (
+                <motion.span
+                  key={etaLabel}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-[10px] text-muted-foreground/40 mt-1 tabular-nums flex-shrink-0"
+                >
+                  {etaLabel}
+                </motion.span>
+              )}
+            </div>
+
+            {/* step dots — one per newsletter */}
+            {progress && progress.total > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {Array.from({ length: progress.total }, (_, i) => (
+                  <motion.span
+                    key={i}
+                    className={`w-2 h-2 rounded-full block ${
+                      i < progress.current ? "bg-primary" : "bg-white/10"
+                    }`}
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: i * 0.04, type: "spring", stiffness: 400, damping: 20 }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* progress bar */}
+            {progress && (
+              <div className="space-y-2">
+                <div className="h-[3px] w-full bg-white/[0.06] rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full rounded-full relative overflow-hidden"
+                    style={{ background: "hsl(var(--primary))" }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  >
+                    <motion.div
+                      className="absolute inset-0 rounded-full"
+                      style={{ background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)" }}
+                      animate={{ x: ["-100%", "200%"] }}
+                      transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.4 }}
+                    />
+                  </motion.div>
+                </div>
+                <p className="text-[10px] text-muted-foreground/30 tabular-nums">{pct}%</p>
+              </div>
+            )}
+
+            {/* current newsletter being processed */}
+            {progress?.title && (
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={progress.title}
+                  className="text-xs text-muted-foreground/50 leading-relaxed"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.22 }}
+                >
+                  {progress.title}
+                </motion.p>
+              </AnimatePresence>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Newsletter selection modal
+// ---------------------------------------------------------------------------
+function NewsletterSelectionModal({
+  newsletters,
+  isFirstSync,
+  selectedIds,
+  blockedDomains,
+  onToggleSelect,
+  onToggleAll,
+  onBlockDomain,
+  onImport,
+  onClose,
+}: {
+  newsletters: EmailPreview[];
+  isFirstSync: boolean;
+  selectedIds: Set<string>;
+  blockedDomains: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleAll: () => void;
+  onBlockDomain: (domain: string) => void;
+  onImport: () => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"newsletters" | "flagged">(
+    "newsletters",
+  );
+  const [unflagged, setUnflagged] = useState<Set<string>>(new Set());
+
+  // Split into main vs flagged (auto-flagged minus user-unflagged)
+  const autoFlaggedIds = useMemo(() => {
+    const s = new Set<string>();
+    newsletters.forEach((n) => {
+      if (shouldFlagEmail(n)) s.add(n.id);
+    });
+    return s;
+  }, [newsletters]);
+
+  const mainEmails = newsletters.filter(
+    (n) => !autoFlaggedIds.has(n.id) || unflagged.has(n.id),
+  );
+  const flaggedEmails = newsletters.filter(
+    (n) => autoFlaggedIds.has(n.id) && !unflagged.has(n.id),
+  );
+  const activeList = activeTab === "newsletters" ? mainEmails : flaggedEmails;
+
+  const visible = mainEmails.filter((n) => !blockedDomains.has(n.domain));
+  const filtered = query
+    ? activeList.filter(
+        (n) =>
+          n.fromName.toLowerCase().includes(query.toLowerCase()) ||
+          n.subject.toLowerCase().includes(query.toLowerCase()),
+      )
+    : activeList;
+  const allSelected =
+    visible.length > 0 && visible.every((n) => selectedIds.has(n.id));
+  const selectedCount = [...selectedIds].filter((id) =>
+    visible.some((n) => n.id === id),
+  ).length;
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      {/* Backdrop */}
+      <motion.div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Sheet / card */}
+      <motion.div
+        className="relative z-10 w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col h-[60vh]"
+        initial={{ y: "100%", opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: "30%", opacity: 0 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">
+              {newsletters.length === 0
+                ? "No new newsletters"
+                : `Found ${newsletters.length} newsletter${newsletters.length !== 1 ? "s" : ""}${isFirstSync ? " today" : ""}`}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {newsletters.length > 0
+                ? "Tap to select. Block senders you don't want."
+                : isFirstSync
+                  ? "No newsletters landed in your inbox today. Check back tomorrow."
+                  : "All caught up — nothing new since your last sync."}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {newsletters.length > 0 ? (
+          <div className="flex flex-col flex-1 min-h-0">
+            {/* Tabs */}
+            <div className="flex border-b border-border/40 bg-secondary/10">
+              {(["newsletters", "flagged"] as const).map((tab) => {
+                const count =
+                  tab === "newsletters"
+                    ? mainEmails.length
+                    : flaggedEmails.length;
+                const active = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => {
+                      setActiveTab(tab);
+                      setQuery("");
+                    }}
+                    className={`flex-1 py-2.5 text-xs font-medium transition-colors relative flex items-center justify-center gap-1.5 ${
+                      active
+                        ? "text-foreground"
+                        : "text-muted-foreground/60 hover:text-muted-foreground"
+                    }`}
+                  >
+                    {tab === "newsletters" ? "Newsletters" : "Flagged"}
+                    {count > 0 && (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold tabular-nums ${
+                          active
+                            ? tab === "flagged"
+                              ? "bg-amber-500/15 text-amber-400"
+                              : "bg-primary/12 text-primary"
+                            : "bg-secondary text-muted-foreground/50"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                    {active && (
+                      <motion.div
+                        layoutId="modal-tab-indicator"
+                        className="absolute bottom-0 left-4 right-4 h-[2px] rounded-full bg-primary"
+                        transition={{
+                          type: "spring",
+                          stiffness: 500,
+                          damping: 35,
+                        }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Search */}
+            <div className="px-4 pt-3 pb-2.5 border-b border-border/30">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder={
+                    activeTab === "newsletters"
+                      ? "Search newsletters…"
+                      : "Search flagged…"
+                  }
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="w-full h-8 pl-8 pr-8 rounded-lg bg-secondary/50 border border-border/50 text-xs placeholder:text-muted-foreground/35 focus:outline-none focus:border-primary/40 transition-colors"
+                />
+                {query && (
+                  <button
+                    onClick={() => setQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Select-all / count bar — only on newsletters tab */}
+            {activeTab === "newsletters" && (
+              <div className="px-5 py-2 border-b border-border/25 flex items-center justify-between">
+                <button
+                  onClick={onToggleAll}
+                  className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {allSelected ? "Deselect all" : "Select all"}
+                </button>
+                <span className="text-[11px] text-muted-foreground/40 tabular-nums">
+                  {selectedCount} of {visible.length} selected
+                </span>
+              </div>
+            )}
+
+            {/* Flagged tab hint */}
+            {activeTab === "flagged" && flaggedEmails.length > 0 && (
+              <div className="px-5 py-2 border-b border-border/25 flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground/50 leading-relaxed">
+                  These look like notifications or automated emails. Add any to
+                  the list if Claude got it wrong.
+                </span>
+              </div>
+            )}
+
+            {/* List */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground/50">
+                  {query
+                    ? `No results for "${query}"`
+                    : activeTab === "flagged"
+                      ? "Nothing flagged — inbox looks clean 🎉"
+                      : "No newsletters found"}
+                </div>
+              ) : (
+                filtered.map((n) => {
+                  const isBlocked = blockedDomains.has(n.domain);
+                  const isFlaggedTab = activeTab === "flagged";
+                  const isSelected = selectedIds.has(n.id) && !isBlocked;
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() =>
+                        !isBlocked && !isFlaggedTab && onToggleSelect(n.id)
+                      }
+                      className={`relative py-3 px-4 border-b border-border/20 flex items-center gap-3 select-none transition-all duration-150 ${
+                        isBlocked
+                          ? "opacity-25 cursor-default"
+                          : isFlaggedTab
+                            ? "cursor-default"
+                            : "cursor-pointer"
+                      } ${
+                        !isFlaggedTab && !isSelected && !isBlocked
+                          ? "opacity-50 hover:opacity-75"
+                          : ""
+                      }`}
+                    >
+                      {/* Selection dot (newsletters tab only) */}
+                      {!isFlaggedTab && !isBlocked && (
+                        <div
+                          className={`w-2 h-2 rounded-full flex-shrink-0 transition-all duration-150 ${
+                            isSelected
+                              ? "bg-primary"
+                              : "border border-muted-foreground/30"
+                          }`}
+                        />
+                      )}
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`text-sm font-medium truncate transition-colors ${
+                            isBlocked
+                              ? "line-through text-muted-foreground"
+                              : isSelected
+                                ? "text-foreground"
+                                : "text-foreground/75"
+                          }`}
+                        >
+                          {n.fromName}
+                        </p>
+                        <p className="text-xs text-muted-foreground/50 truncate mt-0.5">
+                          {n.subject}
+                        </p>
+                      </div>
+
+                      {/* Time */}
+                      <span className="text-[11px] text-muted-foreground/30 flex-shrink-0 tabular-nums">
+                        {formatTime(n.receivedAt)}
+                      </span>
+
+                      {isFlaggedTab ? (
+                        /* Unflag button */
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUnflagged((prev) => new Set([...prev, n.id]));
+                            onToggleSelect(n.id);
+                          }}
+                          title="Move to newsletters list"
+                          className="text-[10px] font-medium text-primary/70 hover:text-primary transition-colors flex-shrink-0 px-2 py-0.5 rounded border border-primary/20 hover:border-primary/50 hover:bg-primary/5"
+                        >
+                          Add to list
+                        </button>
+                      ) : (
+                        /* Block button */
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onBlockDomain(n.domain);
+                          }}
+                          title={
+                            isBlocked ? "Blocked" : "Block this sender forever"
+                          }
+                          className={`p-1 rounded transition-colors flex-shrink-0 ${
+                            isBlocked
+                              ? "text-red-400"
+                              : "text-muted-foreground/20 hover:text-red-400"
+                          }`}
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer CTA */}
+            <div className="px-5 py-4 border-t border-border">
+              <button
+                onClick={onImport}
+                disabled={selectedCount === 0}
+                className="w-full h-10 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40"
+                style={{
+                  background:
+                    selectedCount > 0
+                      ? "linear-gradient(135deg, hsl(199 89% 42%), hsl(221 83% 53%))"
+                      : "hsl(var(--secondary))",
+                  color:
+                    selectedCount > 0
+                      ? "white"
+                      : "hsl(var(--muted-foreground))",
+                }}
+              >
+                {selectedCount > 0 ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Download className="w-4 h-4" />
+                    Import {selectedCount} selected
+                  </span>
+                ) : (
+                  "Select at least one"
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="px-5 py-10 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3">
+              <Inbox className="w-7 h-7 text-muted-foreground" />
+            </div>
+            <button onClick={onClose} className="mt-4 text-xs text-primary">
+              Close
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -159,14 +955,14 @@ function MetricTile({
   sub?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3.5 flex items-center gap-3">
-      <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center flex-shrink-0">
+    <div className="rounded-xl border border-border bg-card px-4 py-4 flex items-center gap-3 h-full">
+      <div className="w-9 h-9 rounded-lg bg-secondary/60 flex items-center justify-center flex-shrink-0">
         {icon}
       </div>
-      <div className="min-w-0">
-        <p className="text-xl font-bold leading-none">{value}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-        {sub && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{sub}</p>}
+      <div className="min-w-0 flex-1">
+        <p className="text-2xl font-bold leading-none tracking-tight">{value}</p>
+        <p className="text-xs text-muted-foreground mt-1">{label}</p>
+        <p className="text-[10px] text-muted-foreground/40 mt-0.5 truncate">{sub ?? " "}</p>
       </div>
     </div>
   );
@@ -200,10 +996,10 @@ function SocialPostPanel({
         {isLi ? (
           <Linkedin className="w-3.5 h-3.5 text-[#0A66C2]" />
         ) : (
-          <Twitter className="w-3.5 h-3.5 text-[#1D9BF0]" />
+          <XIcon className="w-3 h-3 text-foreground" />
         )}
         <span className="text-xs font-medium text-muted-foreground">
-          {isLi ? "LinkedIn" : "X / Twitter"}
+          {isLi ? "LinkedIn" : "X"}
         </span>
       </div>
 
@@ -220,18 +1016,28 @@ function SocialPostPanel({
               onClick={() => onCopy(post, `${summaryId}-${platform}`)}
             >
               {isCopied ? (
-                <><CheckCircle2 className="w-3 h-3 text-green-400" />Copied</>
+                <>
+                  <CheckCircle2 className="w-3 h-3 text-green-400" />
+                  Copied
+                </>
               ) : (
-                <><Copy className="w-3 h-3" />Copy</>
+                <>
+                  <Copy className="w-3 h-3" />
+                  Copy
+                </>
               )}
             </Button>
             {!isLi && (
               <a
-                href={twitterShareUrl(post)}
+                href={xShareUrl(post)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[11px] px-2 gap-1"
+                >
                   <ExternalLink className="w-3 h-3" />
                   Share
                 </Button>
@@ -262,9 +1068,15 @@ function SocialPostPanel({
           onClick={() => onGenerate(summaryId, platform)}
         >
           {isGenerating ? (
-            <><Loader2 className="w-3 h-3 animate-spin" />Generating…</>
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Generating…
+            </>
           ) : (
-            <><Sparkles className="w-3 h-3" />Generate</>
+            <>
+              <Sparkles className="w-3 h-3" />
+              Generate
+            </>
           )}
         </Button>
       )}
@@ -272,43 +1084,226 @@ function SocialPostPanel({
   );
 }
 
-function NewsletterCard({
-  summary,
+// ---------------------------------------------------------------------------
+// Newsletter grouping
+// ---------------------------------------------------------------------------
+interface SourceGroup {
+  sourceEmail: string;
+  senderName: string;
+  latestDate: string;
+  date: string; // YYYY-MM-DD of the email's actual received date
+  articles: Summary[];
+  categories: string[];
+}
+
+function groupSummariesBySource(summaries: Summary[]): SourceGroup[] {
+  const map = new Map<string, SourceGroup>();
+  for (const s of summaries) {
+    // Key by (source + email issue) so each newsletter edition is its own card
+    const key = `${s.source_email}::${s.source_email_id}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.articles.push(s);
+      if (s.created_at > existing.latestDate) existing.latestDate = s.created_at;
+      const cat = s.category || "Other";
+      if (!existing.categories.includes(cat)) existing.categories.push(cat);
+    } else {
+      map.set(key, {
+        sourceEmail: s.source_email,
+        senderName: extractSenderName(s.source_email),
+        articles: [s],
+        latestDate: s.created_at,
+        date: s.processed_date,
+        categories: s.category ? [s.category] : [],
+      });
+    }
+  }
+  // Sort most-recent edition first
+  return Array.from(map.values()).sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
+}
+
+function NewsletterSourceCard({
+  group,
+  onOpen,
+}: {
+  group: SourceGroup;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full text-left bg-card rounded-lg border border-border hover:border-primary/30 hover:shadow-sm transition-all duration-150 group overflow-hidden"
+    >
+      <div className="px-4 py-3.5 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
+          <Mail className="w-4 h-4 text-muted-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate">{group.senderName}</p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
+            {group.articles.length} article{group.articles.length !== 1 ? "s" : ""} · {timeAgo(group.latestDate)}
+          </p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
+      </div>
+      {group.categories.length > 0 && (
+        <div className="px-4 pb-3 flex flex-wrap gap-1">
+          {group.categories.map((cat) => (
+            <span
+              key={cat}
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${getCategoryStyle(cat)}`}
+            >
+              {cat}
+            </span>
+          ))}
+        </div>
+      )}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Source panel (right drawer)
+// ---------------------------------------------------------------------------
+function SourcePanel({
+  sourceEmail,
+  summaries,
+  onClose,
   isExpanded,
   isBookmarked,
+  isRead,
   generatedPosts,
   generating,
   copying,
   onToggleExpand,
   onToggleBookmark,
+  onToggleRead,
   onGenerate,
   onCopy,
   onBlock,
 }: {
-  summary: Summary;
-  isExpanded: boolean;
-  isBookmarked: boolean;
+  sourceEmail: string;
+  summaries: Summary[];
+  onClose: () => void;
+  isExpanded: (id: string) => boolean;
+  isBookmarked: (id: string) => boolean;
+  isRead: (id: string) => boolean;
   generatedPosts: Record<string, { linkedin?: string; twitter?: string }>;
   generating: Record<string, boolean>;
   copying: string | null;
   onToggleExpand: (id: string) => void;
   onToggleBookmark: (id: string) => void;
+  onToggleRead: (id: string) => void;
   onGenerate: (id: string, p: Platform) => void;
   onCopy: (text: string, key: string) => void;
   onBlock: (id: string) => void;
 }) {
+  const articles = summaries.filter((s) => s.source_email === sourceEmail);
+  const senderName = extractSenderName(sourceEmail);
+  return (
+    <>
+      <motion.div
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="fixed inset-y-0 right-0 z-50 w-full sm:w-[460px] bg-background border-l border-border shadow-2xl flex flex-col"
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <div>
+            <p className="text-sm font-semibold">{senderName}</p>
+            <p className="text-xs text-muted-foreground">
+              {articles.length} article{articles.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {articles.map((s) => (
+            <NewsletterCard
+              key={s.id}
+              summary={s}
+              isExpanded={isExpanded(s.id)}
+              isBookmarked={isBookmarked(s.id)}
+              isRead={isRead(s.id)}
+              generatedPosts={generatedPosts}
+              generating={generating}
+              copying={copying}
+              onToggleExpand={onToggleExpand}
+              onToggleBookmark={onToggleBookmark}
+              onToggleRead={onToggleRead}
+              onGenerate={onGenerate}
+              onCopy={onCopy}
+              onBlock={onBlock}
+            />
+          ))}
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
+function NewsletterCard({
+  summary,
+  isExpanded,
+  isBookmarked,
+  isRead,
+  generatedPosts,
+  generating,
+  copying,
+  onToggleExpand,
+  onToggleBookmark,
+  onToggleRead,
+  onGenerate,
+  onCopy,
+  onBlock,
+  noOuterBorder = false,
+  onOpenSource,
+}: {
+  summary: Summary;
+  isExpanded: boolean;
+  isBookmarked: boolean;
+  isRead: boolean;
+  generatedPosts: Record<string, { linkedin?: string; twitter?: string }>;
+  generating: Record<string, boolean>;
+  copying: string | null;
+  onToggleExpand: (id: string) => void;
+  onToggleBookmark: (id: string) => void;
+  onToggleRead: (id: string) => void;
+  onGenerate: (id: string, p: Platform) => void;
+  onCopy: (text: string, key: string) => void;
+  onBlock: (id: string) => void;
+  noOuterBorder?: boolean;
+  onOpenSource?: (sourceEmail: string) => void;
+}) {
+  const [socialOpen, setSocialOpen] = useState(true);
   const posts = generatedPosts[summary.id] ?? {};
   const cat = summary.category || "Other";
   const catStyle = getCategoryStyle(cat);
   const senderName = extractSenderName(summary.source_email);
   const senderDomain = extractSenderDomain(summary.source_email);
-  const sourceHref = summary.source_url || (senderDomain ? `https://${senderDomain}` : null);
+  const sourceHref =
+    summary.source_url || (senderDomain ? `https://${senderDomain}` : null);
 
   return (
     <article
-      className={`rounded-lg border bg-card overflow-hidden transition-all duration-150 ${
-        isExpanded ? "border-border/80 ring-1 ring-primary/20" : "border-border hover:border-border/70 min-h-24"
-      } ${!summary.is_read && !isExpanded ? "border-l-[3px] border-l-primary/50" : ""}`}
+      className={`bg-card overflow-hidden transition-all duration-150 ${
+        noOuterBorder
+          ? ""
+          : `rounded-xl border ${isExpanded ? "border-border/80 ring-1 ring-primary/20" : "border-border hover:border-primary/20 min-h-24"}`
+      } ${!isRead && !isExpanded && !noOuterBorder ? "border-l-[3px] border-l-primary/60" : ""}`}
     >
       <div className="px-4 sm:px-5 pt-3.5 flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
@@ -317,29 +1312,28 @@ function NewsletterCard({
           >
             {cat}
           </span>
-          {sourceHref ? (
-            <a
-              href={sourceHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Mail className="w-3 h-3" />
-              {senderName}
-              <ExternalLink className="w-2.5 h-2.5" />
-            </a>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Mail className="w-3 h-3" />
-              {senderName}
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Mail className="w-3 h-3" />
+            {senderName}
+          </span>
           <span className="text-[10px] text-muted-foreground/40">
             {timeAgo(summary.created_at)}
           </span>
         </div>
 
         <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleRead(summary.id); }}
+            title={isRead ? "Mark as unread" : "Mark as read"}
+            className={`p-1 rounded transition-colors ${
+              isRead
+                ? "text-muted-foreground/25 hover:text-muted-foreground"
+                : "text-primary/60 hover:text-primary"
+            }`}
+          >
+            {isRead ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </button>
+
           <button
             onClick={() => onBlock(summary.id)}
             title="Block this sender"
@@ -385,52 +1379,100 @@ function NewsletterCard({
       {isExpanded && (
         <div className="border-t border-border">
           <div className="px-4 sm:px-5 py-4 space-y-4">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {summary.simple_explanation}
-            </p>
+            {summary.summary && (
+              <p className="text-sm text-foreground/80 leading-relaxed">
+                {summary.summary}
+              </p>
+            )}
 
             {summary.key_points?.length > 0 && (
               <ul className="space-y-2">
                 {summary.key_points.map((point, i) => (
                   <li key={i} className="flex gap-2.5 text-sm">
-                    <span className="text-primary mt-0.5 flex-shrink-0 text-xs">▸</span>
+                    <span className="text-primary mt-0.5 flex-shrink-0 text-xs">
+                      ▸
+                    </span>
                     <span className="text-foreground/85">{point}</span>
                   </li>
                 ))}
               </ul>
             )}
 
-            <p className="text-[10px] text-muted-foreground/50">
-              {formatDate(summary.created_at)}
-            </p>
+            {summary.simple_explanation && (
+              <p className="text-xs text-muted-foreground/70 leading-relaxed border-l-2 border-border pl-3">
+                {summary.simple_explanation}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-[10px] text-muted-foreground/50">
+                {formatDate(summary.created_at)}
+              </p>
+              {sourceHref && (
+                <a
+                  href={sourceHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
+                >
+                  Read article
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+
+            {onOpenSource && (
+              <button
+                onClick={() => onOpenSource(summary.source_email)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary/80 hover:text-primary transition-colors"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                View all from {senderName}
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="px-4 sm:px-5 py-4 bg-secondary/20 border-t border-border space-y-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-              Social Posts
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <SocialPostPanel
-                summaryId={summary.id}
-                platform="linkedin"
-                existingPost={summary.linkedin_post}
-                generatedPost={posts.linkedin}
-                isGenerating={!!generating[`${summary.id}-linkedin`]}
-                isCopied={copying === `${summary.id}-linkedin`}
-                onGenerate={onGenerate}
-                onCopy={onCopy}
+            <button
+              onClick={() => setSocialOpen((o) => !o)}
+              className="flex items-center justify-between w-full group"
+            >
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+                Social Posts
+              </p>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform duration-200 ${socialOpen ? "rotate-180" : ""}`}
               />
-              <SocialPostPanel
-                summaryId={summary.id}
-                platform="twitter"
-                existingPost={summary.twitter_post}
-                generatedPost={posts.twitter}
-                isGenerating={!!generating[`${summary.id}-twitter`]}
-                isCopied={copying === `${summary.id}-twitter`}
-                onGenerate={onGenerate}
-                onCopy={onCopy}
-              />
-            </div>
+            </button>
+            {socialOpen && (
+              <div className="flex flex-col sm:flex-row gap-3 items-start">
+                <div className="w-full sm:flex-1">
+                  <SocialPostPanel
+                    summaryId={summary.id}
+                    platform="linkedin"
+                    existingPost={summary.linkedin_post}
+                    generatedPost={posts.linkedin}
+                    isGenerating={!!generating[`${summary.id}-linkedin`]}
+                    isCopied={copying === `${summary.id}-linkedin`}
+                    onGenerate={onGenerate}
+                    onCopy={onCopy}
+                  />
+                </div>
+                <div className="w-full sm:flex-1">
+                  <SocialPostPanel
+                    summaryId={summary.id}
+                    platform="twitter"
+                    existingPost={summary.twitter_post}
+                    generatedPost={posts.twitter}
+                    isGenerating={!!generating[`${summary.id}-twitter`]}
+                    isCopied={copying === `${summary.id}-twitter`}
+                    onGenerate={onGenerate}
+                    onCopy={onCopy}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -442,17 +1484,23 @@ function NewsletterCard({
 // Dashboard page
 // ---------------------------------------------------------------------------
 export default function Dashboard() {
-  const { isLoaded } = useUser();
+  const { isLoaded, user } = useUser();
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [syncing, setSyncing] = useState(false); // importing via SSE
+  const [scanning, setScanning] = useState(false); // scan phase
   const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
-  const [gmailAddress, setGmailAddress] = useState<string | null>(null);
+
+  // ── Scan / selection modal state ──────────────────────────────────────────
+  const [scanResult, setScanResult] = useState<EmailPreview[] | null>(null);
+  const [isFirstScan, setIsFirstScan] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [blockedInModal, setBlockedInModal] = useState<Set<string>>(new Set());
 
   // ── Per-card state ────────────────────────────────────────────────────────
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -469,11 +1517,17 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeSource, setActiveSource] = useState("All");
-  const [dateFilter, setDateFilter] = useState<DateFilter>("90d");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("7d");
+  const [panelSource, setPanelSource] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 20;
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const scanAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -487,13 +1541,18 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => setSearchQuery(searchInput), 300);
+    const t = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setPage(1);
+    }, 300);
     return () => clearTimeout(t);
   }, [searchInput]);
 
   useEffect(() => {
     if (!summaries.length) return;
-    setBookmarked(new Set(summaries.filter((s) => s.is_bookmarked).map((s) => s.id)));
+    setBookmarked(
+      new Set(summaries.filter((s) => s.is_bookmarked).map((s) => s.id)),
+    );
     setRead(new Set(summaries.filter((s) => s.is_read).map((s) => s.id)));
   }, [summaries]);
 
@@ -516,19 +1575,95 @@ export default function Dashboard() {
       .then((r) => r.json())
       .then((d) => {
         setGmailConnected(d.connected);
-        setGmailAddress(d.gmailAddress ?? null);
       })
       .catch(() => setGmailConnected(false));
   }, [fetchSummaries]);
 
-  const handleSync = async () => {
-    setSyncing(true);
+  // ── Scan phase (opens selection modal) ────────────────────────────────────
+  const handleScan = async () => {
+    const controller = new AbortController();
+    scanAbortRef.current = controller;
+
+    setScanning(true);
     setSyncError(null);
     setSyncStats(null);
+
+    try {
+      const res = await fetch("/api/scan", { method: "POST", signal: controller.signal });
+      const data = await res.json();
+
+      if (data.error) {
+        setSyncError(data.error);
+        return;
+      }
+
+      const newsletters: EmailPreview[] = data.newsletters ?? [];
+      setIsFirstScan(data.isFirstSync ?? false);
+
+      if (newsletters.length === 0) {
+        setSyncStats({
+          processedCount: 0,
+          skippedCount: 0,
+          deletedCount: 0,
+          nothingNew: true,
+        });
+        return;
+      }
+
+      setScanResult(newsletters);
+      setSelectedIds(
+        new Set(
+          newsletters.filter((n) => !shouldFlagEmail(n)).map((n) => n.id),
+        ),
+      );
+      setBlockedInModal(new Set());
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      setSyncError(err instanceof Error ? err.message : "Scan failed");
+    } finally {
+      setScanning(false);
+      scanAbortRef.current = null;
+    }
+  };
+
+  // ── Import phase (SSE stream for selected emails) ─────────────────────────
+  const handleImport = async (emailIds: string[]) => {
+    // Dismiss only flagged emails — they were never newsletters.
+    // Deselected newsletter-tab items are kept so they reappear on the next scan.
+    const unselected = (scanResult ?? [])
+      .filter((n) => shouldFlagEmail(n) && !emailIds.includes(n.id))
+      .map((n) => n.id);
+    if (unselected.length) {
+      fetch("/api/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailIds: unselected }),
+      }).catch(() => {});
+    }
+
+    setScanResult(null);
+
+    // Fire block requests for any domains the user blocked in the modal
+    blockedInModal.forEach((domain) => {
+      fetch("/api/block-sender", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      }).catch(() => {});
+    });
+
+    if (emailIds.length === 0) return;
+
+    setSyncing(true);
+    setSyncError(null);
     setSyncProgress(null);
 
     try {
-      const response = await fetch("/api/summarize", { method: "POST" });
+      const response = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailIds }),
+      });
       if (!response.body) throw new Error("No response stream");
 
       const reader = response.body.getReader();
@@ -548,9 +1683,17 @@ export default function Dashboard() {
           try {
             const data = JSON.parse(line.slice(6));
             if (data.type === "start") {
-              setSyncProgress({ current: 0, total: data.total, title: "Starting…" });
+              setSyncProgress({
+                current: 0,
+                total: data.total,
+                title: "Starting…",
+              });
             } else if (data.type === "progress") {
-              setSyncProgress({ current: data.current, total: data.total, title: data.title });
+              setSyncProgress({
+                current: data.current,
+                total: data.total,
+                title: data.title,
+              });
             } else if (data.type === "complete") {
               setSyncStats({
                 processedCount: data.processedCount ?? 0,
@@ -568,10 +1711,55 @@ export default function Dashboard() {
         }
       }
     } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Sync failed");
+      setSyncError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setSyncing(false);
       setSyncProgress(null);
+    }
+  };
+
+  // ── Modal actions ─────────────────────────────────────────────────────────
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleToggleAll = () => {
+    if (!scanResult) return;
+    const visible = scanResult.filter(
+      (n) => !shouldFlagEmail(n) && !blockedInModal.has(n.domain),
+    );
+    const allSelected = visible.every((n) => selectedIds.has(n.id));
+    if (allSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        visible.forEach((n) => next.delete(n.id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        visible.forEach((n) => next.add(n.id));
+        return next;
+      });
+    }
+  };
+
+  const handleBlockInModal = (domain: string) => {
+    setBlockedInModal((prev) => new Set([...prev, domain]));
+    // Deselect all emails from this domain
+    if (scanResult) {
+      const domainIds = scanResult
+        .filter((n) => n.domain === domain)
+        .map((n) => n.id);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        domainIds.forEach((id) => next.delete(id));
+        return next;
+      });
     }
   };
 
@@ -592,8 +1780,22 @@ export default function Dashboard() {
         }).catch(() => {});
       }
     },
-    [read]
+    [read],
   );
+
+  const handleToggleRead = useCallback((id: string) => {
+    setRead((prev) => {
+      const next = new Set(prev);
+      const nowRead = !next.has(id);
+      nowRead ? next.add(id) : next.delete(id);
+      fetch("/api/update-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_read: nowRead }),
+      }).catch(() => {});
+      return next;
+    });
+  }, []);
 
   const handleToggleBookmark = useCallback((id: string) => {
     setBookmarked((prev) => {
@@ -654,8 +1856,11 @@ export default function Dashboard() {
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const uniqueSources = useMemo(
-    () => Array.from(new Set(summaries.map((s) => extractSenderName(s.source_email)))).sort(),
-    [summaries]
+    () =>
+      Array.from(
+        new Set(summaries.map((s) => extractSenderName(s.source_email))),
+      ).sort(),
+    [summaries],
   );
 
   const categoryCounts = useMemo(() => {
@@ -677,7 +1882,7 @@ export default function Dashboard() {
           s.newsletter_title.toLowerCase().includes(q) ||
           s.simple_explanation.toLowerCase().includes(q) ||
           s.key_points?.some((p) => p.toLowerCase().includes(q)) ||
-          extractSenderName(s.source_email).toLowerCase().includes(q)
+          extractSenderName(s.source_email).toLowerCase().includes(q),
       );
     }
 
@@ -687,7 +1892,7 @@ export default function Dashboard() {
 
     if (activeSource !== "All") {
       result = result.filter(
-        (s) => extractSenderName(s.source_email) === activeSource
+        (s) => extractSenderName(s.source_email) === activeSource,
       );
     }
 
@@ -700,25 +1905,43 @@ export default function Dashboard() {
       result = result.filter((s) => bookmarked.has(s.id));
     }
 
+    if (unreadOnly) {
+      result = result.filter((s) => !read.has(s.id));
+    }
+
     return [...result].sort((a, b) => {
       if (sortBy === "oldest")
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        return (
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
       if (sortBy === "source")
         return extractSenderName(a.source_email).localeCompare(
-          extractSenderName(b.source_email)
+          extractSenderName(b.source_email),
         );
       if (sortBy === "category")
         return (a.category || "Other").localeCompare(b.category || "Other");
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      return (
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     });
-  }, [summaries, searchQuery, activeCategory, activeSource, dateFilter, bookmarkedOnly, sortBy, bookmarked]);
+  }, [summaries, searchQuery, activeCategory, activeSource, dateFilter, bookmarkedOnly, unreadOnly, sortBy, bookmarked, read]);
+
+  const sourceGroups = useMemo(
+    () => groupSummariesBySource(filteredSummaries),
+    [filteredSummaries],
+  );
+
+  const unreadCount = useMemo(
+    () => summaries.filter((s) => !read.has(s.id)).length,
+    [summaries, read],
+  );
 
   const metrics = useMemo(() => {
     const liReady = summaries.filter(
-      (s) => s.linkedin_post || generatedPosts[s.id]?.linkedin
+      (s) => s.linkedin_post || generatedPosts[s.id]?.linkedin,
     ).length;
     const twReady = summaries.filter(
-      (s) => s.twitter_post || generatedPosts[s.id]?.twitter
+      (s) => s.twitter_post || generatedPosts[s.id]?.twitter,
     ).length;
     return {
       total: summaries.length,
@@ -730,17 +1953,25 @@ export default function Dashboard() {
   }, [summaries, generatedPosts, uniqueSources, bookmarked]);
 
   const hasActiveFilters =
-    searchQuery || activeCategory !== "All" || activeSource !== "All" ||
-    dateFilter !== "90d" || sortBy !== "newest" || bookmarkedOnly;
+    searchQuery ||
+    activeCategory !== "All" ||
+    activeSource !== "All" ||
+    dateFilter !== "7d" ||
+    sortBy !== "newest" ||
+    bookmarkedOnly ||
+    unreadOnly;
 
   const clearFilters = () => {
     setSearchInput("");
     setSearchQuery("");
     setActiveCategory("All");
     setActiveSource("All");
-    setDateFilter("90d");
+    setDateFilter("7d");
     setSortBy("newest");
     setBookmarkedOnly(false);
+    setUnreadOnly(false);
+    setShowAdvanced(false);
+    setPage(1);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -748,111 +1979,88 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* ── Selection modal ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {scanResult !== null && (
+          <NewsletterSelectionModal
+            key="selection-modal"
+            newsletters={scanResult}
+            isFirstSync={isFirstScan}
+            selectedIds={selectedIds}
+            blockedDomains={blockedInModal}
+            onToggleSelect={handleToggleSelect}
+            onToggleAll={handleToggleAll}
+            onBlockDomain={handleBlockInModal}
+            onImport={() => {
+              const ids = [...selectedIds].filter(
+                (id) =>
+                  !scanResult.find(
+                    (n) => n.id === id && blockedInModal.has(n.domain),
+                  ),
+              );
+              handleImport(ids);
+            }}
+            onClose={() => setScanResult(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Sync / import overlay ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {(scanning || syncing || !!syncStats || !!syncError) &&
+          scanResult === null && (
+            <SyncOverlay
+              key="sync-overlay"
+              scanning={scanning}
+              importing={syncing}
+              progress={syncProgress}
+              stats={syncStats}
+              error={syncError}
+              onDismiss={() => {
+                setSyncStats(null);
+                setSyncError(null);
+              }}
+              onCancel={() => { scanAbortRef.current?.abort(); }}
+            />
+          )}
+      </AnimatePresence>
+
+      {/* ── Source panel ───────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {panelSource && (
+          <SourcePanel
+            key="source-panel"
+            sourceEmail={panelSource}
+            summaries={summaries}
+            onClose={() => setPanelSource(null)}
+            isExpanded={(id) => expandedIds.has(id)}
+            isBookmarked={(id) => bookmarked.has(id)}
+            isRead={(id) => read.has(id)}
+            generatedPosts={generatedPosts}
+            generating={generating}
+            copying={copying}
+            onToggleExpand={handleToggleExpand}
+            onToggleBookmark={handleToggleBookmark}
+            onToggleRead={handleToggleRead}
+            onGenerate={handleGenerate}
+            onCopy={handleCopy}
+            onBlock={handleBlock}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3 py-3">
-            {/* Logo */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/pidgin-main.png" alt="Pidgin" className="w-7 h-7 rounded-md" />
-              <span className="font-semibold text-sm hidden sm:block">Pidgin</span>
-            </div>
-
-            {/* Search — hidden during onboarding */}
-            {gmailConnected !== false && (
-              <div className="flex-1 max-w-xl relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  ref={searchRef}
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Search newsletters… (press /)"
-                  className="pl-8 h-8 text-xs bg-secondary/50 border-border/60 focus-visible:ring-primary/50"
-                />
-                {searchInput && (
-                  <button
-                    onClick={() => setSearchInput("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Sync button — only when Gmail connected */}
-            {gmailConnected === true && (
-              <Button
-                size="sm"
-                onClick={handleSync}
-                disabled={syncing || loading}
-                className="gap-1.5 text-xs h-8 flex-shrink-0"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-                <span className="hidden sm:inline">{syncing ? "Syncing…" : "Sync"}</span>
-              </Button>
-            )}
-
-            {/* Theme + User avatar */}
-            <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+          <div className="flex items-center justify-between h-12">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/pidgin-main.png" alt="Pidgin" className="w-7 h-7" />
+            <div className="flex items-center gap-2">
               <ThemeToggle />
               <CustomUserButton />
             </div>
           </div>
         </div>
-
-        {/* Sync progress / result strip */}
-        {(syncProgress || syncStats || syncError) && (
-          <div
-            className={`border-t ${syncError ? "border-red-500/20 bg-red-500/5" : "border-border bg-secondary/20"}`}
-          >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 space-y-1.5">
-              {syncError ? (
-                <span className="text-xs text-red-400 flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  {syncError}
-                </span>
-              ) : syncProgress ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <Loader2 className="w-3 h-3 animate-spin text-primary" />
-                      <span className="text-foreground font-medium">
-                        {syncProgress.current}/{syncProgress.total}
-                      </span>
-                      <span className="truncate max-w-xs">{syncProgress.title}</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {Math.round((syncProgress.current / syncProgress.total) * 100)}%
-                    </span>
-                  </div>
-                  <div className="h-0.5 w-full bg-border rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
-                    />
-                  </div>
-                </>
-              ) : syncStats ? (
-                <div className="flex items-center gap-5">
-                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                    <span className="text-foreground font-medium">{syncStats.processedCount}</span> new
-                  </span>
-                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="text-foreground font-medium">{syncStats.skippedCount}</span> skipped
-                  </span>
-                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-amber-400" />
-                    <span className="text-foreground font-medium">{syncStats.deletedCount}</span> removed
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        )}
       </header>
 
       {/* ── Onboarding (Gmail not yet connected) ─────────────────────────── */}
@@ -865,15 +2073,21 @@ export default function Dashboard() {
                   <Mail className="w-7 h-7 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-semibold tracking-tight">Your AI newsletter digest</h1>
+                  <h1 className="text-xl font-semibold tracking-tight">
+                    Your newsletters, already read.
+                  </h1>
                   <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-                    Pidgin connects to your Gmail, reads every newsletter you&apos;re subscribed to, and gives you a clean AI summary — plus ready-to-publish LinkedIn and X posts.
+                    Pidgin scans your Gmail, summarizes every newsletter with
+                    AI, and drafts LinkedIn posts — so you stay informed without
+                    the inbox chaos.
                   </p>
                 </div>
               </div>
 
               <div className="space-y-2.5">
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">How it works</p>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
+                  How it works
+                </p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/40">
                     <div className="w-5 h-5 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center flex-shrink-0">
@@ -881,7 +2095,9 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <p className="text-xs font-medium">Create your account</p>
-                      <p className="text-[11px] text-muted-foreground">Done — you&apos;re signed in</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Done — you&apos;re signed in
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
@@ -889,17 +2105,23 @@ export default function Dashboard() {
                       <Mail className="w-2.5 h-2.5 text-white" />
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-primary">Connect your Gmail</p>
-                      <p className="text-[11px] text-muted-foreground">Grant read-only access — takes 30 seconds</p>
+                      <p className="text-xs font-medium text-primary">
+                        Connect your Gmail
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Grant read-only access — takes 30 seconds
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg opacity-40">
                     <div className="w-5 h-5 rounded-full border border-border flex items-center justify-center flex-shrink-0">
-                      <Zap className="w-2.5 h-2.5 text-muted-foreground" />
+                      <Inbox className="w-2.5 h-2.5 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="text-xs font-medium">Sync &amp; read your digest</p>
-                      <p className="text-[11px] text-muted-foreground">AI summaries appear in seconds</p>
+                      <p className="text-xs font-medium">Pick &amp; import</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Choose which newsletters to bring in
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -915,7 +2137,9 @@ export default function Dashboard() {
                 </a>
                 <p className="text-center text-[11px] text-muted-foreground leading-relaxed">
                   Read-only access. We never send, delete, or modify your email.
-                  <br />Your data stays private and is only used to generate your digest.
+                  <br />
+                  Your data stays private and is only used to generate your
+                  digest.
                 </p>
               </div>
             </div>
@@ -925,138 +2149,229 @@ export default function Dashboard() {
 
       {/* ── Dashboard (Gmail connected or loading) ────────────────────────── */}
       {gmailConnected !== false && (
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 space-y-6">
+
+          {/* ── Hero greeting ──────────────────────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="relative flex items-end justify-between gap-4 pt-10 pb-2"
+          >
+            {/* subtle glow orb */}
+            <div
+              className="absolute -top-4 -left-8 w-72 h-40 rounded-full pointer-events-none"
+              style={{ background: "radial-gradient(ellipse at top left, hsl(var(--primary)/0.12), transparent 70%)", filter: "blur(32px)" }}
+              aria-hidden
+            />
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+                {getGreeting()}, pidginite.
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1.5">
+                {unreadCount > 0
+                  ? `${unreadCount} unread article${unreadCount !== 1 ? "s" : ""} · ${metrics.sources} source${metrics.sources !== 1 ? "s" : ""}`
+                  : metrics.total > 0
+                    ? `All caught up · ${metrics.total} article${metrics.total !== 1 ? "s" : ""} in your digest`
+                    : "Your inbox is empty — sync to get started."}
+              </p>
+            </div>
+            {gmailConnected === true && (
+              <SyncButton
+                onScan={handleScan}
+                scanning={scanning}
+                disabled={loading || syncing}
+              />
+            )}
+          </motion.div>
+
           {/* ── Metrics ────────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            <MetricTile
-              label="Total newsletters"
-              value={metrics.total}
-              icon={<LayoutGrid className="w-4 h-4 text-muted-foreground" />}
-              sub="last 3 months"
-            />
-            <MetricTile
-              label="LinkedIn posts"
-              value={metrics.liReady}
-              icon={<Linkedin className="w-4 h-4 text-[#0A66C2]" />}
-              sub="ready to publish"
-            />
-            <MetricTile
-              label="Twitter/X posts"
-              value={metrics.twReady}
-              icon={<Twitter className="w-4 h-4 text-[#1D9BF0]" />}
-              sub="ready to publish"
-            />
-            <MetricTile
-              label="Unique sources"
-              value={metrics.sources}
-              icon={<Mail className="w-4 h-4 text-muted-foreground" />}
-            />
-            <MetricTile
-              label="Bookmarked"
-              value={metrics.bookmarkedCount}
-              icon={<Bookmark className="w-4 h-4 text-amber-400" />}
-            />
-          </div>
+          <motion.div
+            className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-stretch"
+            initial="hidden"
+            animate="visible"
+            variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
+          >
+            {[
+              <MetricTile key="unread" label="Unread" value={unreadCount} icon={<MailOpen className="w-4 h-4 text-primary" />} sub={`of ${metrics.total} total`} />,
+              <MetricTile key="li" label="LinkedIn posts" value={metrics.liReady} icon={<Linkedin className="w-4 h-4 text-[#0A66C2]" />} sub="ready to publish" />,
+              <MetricTile key="x" label="X posts" value={metrics.twReady} icon={<XIcon className="w-4 h-4 text-foreground" />} sub="ready to publish" />,
+              <MetricTile key="sources" label="Unique sources" value={metrics.sources} icon={<Mail className="w-4 h-4 text-muted-foreground" />} />,
+              <MetricTile key="bm" label="Bookmarked" value={metrics.bookmarkedCount} icon={<Bookmark className="w-4 h-4 text-amber-400" />} />,
+            ].map((tile) => (
+              <motion.div
+                key={tile.key}
+                className="h-full"
+                variants={{
+                  hidden: { opacity: 0, y: 8 },
+                  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
+                }}
+              >
+                {tile}
+              </motion.div>
+            ))}
+          </motion.div>
 
           {/* ── Filters ────────────────────────────────────────────────────── */}
-          <div className="space-y-3">
-            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
-              {CATEGORIES.map((cat) => {
-                const isActive = activeCategory === cat;
-                const count = cat === "All" ? summaries.length : categoryCounts[cat] ?? 0;
-                if (cat !== "All" && count === 0) return null;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
-                      isActive
-                        ? cat === "All"
-                          ? "bg-primary text-white border-primary"
-                          : `${getCategoryStyle(cat)} border opacity-100`
-                        : "bg-secondary/40 text-muted-foreground border-border hover:border-border/80 hover:text-foreground"
-                    }`}
-                  >
-                    {cat}
-                    <span className={`text-[10px] ${isActive ? "opacity-80" : "opacity-50"}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+          <div className="space-y-1.5">
+            {/* Primary row: chips + icon controls */}
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1.5 overflow-x-auto flex-1 scrollbar-hide -mx-0.5 px-0.5 pb-0.5">
+                {CATEGORIES.map((cat) => {
+                  const isActive = activeCategory === cat;
+                  const count =
+                    cat === "All" ? summaries.length : (categoryCounts[cat] ?? 0);
+                  if (cat !== "All" && count === 0) return null;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setActiveCategory(cat)}
+                      className={`flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                        isActive
+                          ? cat === "All"
+                            ? "bg-primary text-white border-primary"
+                            : `${getCategoryStyle(cat)} border opacity-100`
+                          : "bg-secondary/40 text-muted-foreground border-border hover:border-border/80 hover:text-foreground"
+                      }`}
+                    >
+                      {cat}
+                      <span className={`text-[10px] ${isActive ? "opacity-80" : "opacity-50"}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={activeSource}
-                onChange={(e) => setActiveSource(e.target.value)}
-                className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-              >
-                <option value="All">All sources</option>
-                {uniqueSources.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-                className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-              >
-                <option value="7d">Last 7 days</option>
-                <option value="30d">Last 30 days</option>
-                <option value="90d">Last 3 months</option>
-                <option value="all">All time</option>
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-              >
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-                <option value="source">By source</option>
-                <option value="category">By category</option>
-              </select>
-
-              <button
-                onClick={() => setBookmarkedOnly((v) => !v)}
-                className={`h-7 inline-flex items-center gap-1.5 px-2.5 rounded-md border text-xs transition-colors ${
-                  bookmarkedOnly
-                    ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                    : "bg-secondary/40 text-muted-foreground border-border hover:text-foreground"
-                }`}
-              >
-                <Bookmark className="w-3 h-3" />
-                Bookmarked
-              </button>
-
-              {hasActiveFilters && (
+              {/* Icon-only controls */}
+              <div className="flex items-center gap-0.5 flex-shrink-0">
                 <button
-                  onClick={clearFilters}
-                  className="h-7 inline-flex items-center gap-1 px-2 rounded-md text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setUnreadOnly((v) => !v)}
+                  title="Unread only"
+                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                    unreadOnly
+                      ? "bg-primary/15 text-primary"
+                      : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
+                  }`}
                 >
-                  <X className="w-3 h-3" />
-                  Clear
+                  <MailOpen className="w-3.5 h-3.5" />
                 </button>
-              )}
-
-              {!loading && (
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {filteredSummaries.length === summaries.length
-                    ? `${summaries.length} newsletter${summaries.length !== 1 ? "s" : ""}`
-                    : `${filteredSummaries.length} of ${summaries.length}`}
-                </span>
-              )}
+                <button
+                  onClick={() => setBookmarkedOnly((v) => !v)}
+                  title="Bookmarked only"
+                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                    bookmarkedOnly
+                      ? "bg-amber-500/15 text-amber-400"
+                      : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  <Bookmark className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  title="More filters"
+                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                    showAdvanced || activeSource !== "All" || dateFilter !== "7d" || sortBy !== "newest"
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                </button>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    title="Clear all filters"
+                    className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:bg-secondary transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Advanced row — collapsible */}
+            <AnimatePresence>
+              {showAdvanced && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.18, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                      <Input
+                        ref={searchRef}
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        placeholder="Search…"
+                        className="pl-6 pr-6 h-7 w-36 text-xs bg-secondary/30 border-border/60 focus-visible:ring-primary/40"
+                      />
+                      {searchInput && (
+                        <button
+                          onClick={() => setSearchInput("")}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    <select
+                      value={activeSource}
+                      onChange={(e) => setActiveSource(e.target.value)}
+                      className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="All">All sources</option>
+                      {uniqueSources.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+                      className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="7d">Last 7 days</option>
+                      <option value="all">All time</option>
+                    </select>
+
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as SortOption)}
+                      className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="newest">Newest first</option>
+                      <option value="oldest">Oldest first</option>
+                      <option value="source">By source</option>
+                      <option value="category">By category</option>
+                    </select>
+
+                    {!loading && (
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {sourceGroups.length === uniqueSources.length
+                          ? `${uniqueSources.length} newsletter${uniqueSources.length !== 1 ? "s" : ""}`
+                          : `${sourceGroups.length} of ${uniqueSources.length} newsletters`}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* ── Content ────────────────────────────────────────────────────── */}
           {loading ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-28 rounded-lg border border-border bg-card animate-pulse" />
+                <div
+                  key={i}
+                  className="h-28 rounded-lg border border-border bg-card animate-pulse"
+                />
               ))}
             </div>
           ) : summaries.length === 0 ? (
@@ -1066,13 +2381,16 @@ export default function Dashboard() {
               </div>
               <p className="text-sm font-medium">No newsletters yet</p>
               <p className="text-xs text-muted-foreground mt-1.5 max-w-xs leading-relaxed">
-                Click <span className="font-medium text-foreground">Sync</span> to fetch
-                and summarize your Gmail newsletters. New items will appear here.
+                Click <span className="font-medium text-foreground">Sync</span>{" "}
+                to scan your Gmail inbox and pick which newsletters to import.
               </p>
-              <Button size="sm" onClick={handleSync} disabled={syncing} className="mt-5 gap-2">
-                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-                Sync now
-              </Button>
+              <div className="mt-5">
+                <SyncButton
+                  onScan={handleScan}
+                  scanning={scanning}
+                  disabled={syncing}
+                />
+              </div>
             </div>
           ) : filteredSummaries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -1085,30 +2403,107 @@ export default function Dashboard() {
               </p>
               <button
                 onClick={clearFilters}
-                className="mt-4 text-xs text-primary hover:underline"
+                className="mt-4 text-xs text-primary"
               >
                 Clear all filters
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-              {filteredSummaries.map((summary) => (
-                <NewsletterCard
-                  key={summary.id}
-                  summary={summary}
-                  isExpanded={expandedIds.has(summary.id)}
-                  isBookmarked={bookmarked.has(summary.id)}
-                  generatedPosts={generatedPosts}
-                  generating={generating}
-                  copying={copying}
-                  onToggleExpand={handleToggleExpand}
-                  onToggleBookmark={handleToggleBookmark}
-                  onGenerate={handleGenerate}
-                  onCopy={handleCopy}
-                  onBlock={handleBlock}
-                />
-              ))}
-            </div>
+            (() => {
+              const totalPages = Math.ceil(sourceGroups.length / PER_PAGE);
+              const paged = sourceGroups.slice(
+                (page - 1) * PER_PAGE,
+                page * PER_PAGE,
+              );
+
+              // Group paged source cards by their latest article date
+              const dateGroups: { label: string; groups: SourceGroup[] }[] = [];
+              paged.forEach((g) => {
+                const label = dateSectionLabel(g.date + "T12:00:00");
+                const last = dateGroups[dateGroups.length - 1];
+                if (last?.label === label) last.groups.push(g);
+                else dateGroups.push({ label, groups: [g] });
+              });
+
+              return (
+                <div className="space-y-6">
+                  {dateGroups.map((dateGroup) => {
+                    const left = dateGroup.groups.filter((_, i) => i % 2 === 0);
+                    const right = dateGroup.groups.filter((_, i) => i % 2 !== 0);
+                    return (
+                      <div key={dateGroup.label} className="space-y-3">
+                        {/* Date section header */}
+                        <div className="flex items-center gap-3 px-0.5">
+                          <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-widest flex-shrink-0">
+                            {dateGroup.label}
+                          </span>
+                          <div className="flex-1 h-px bg-border/40" />
+                        </div>
+                        {/* Mobile: single column */}
+                        <div className="flex flex-col gap-3 lg:hidden">
+                          {dateGroup.groups.map((g) => (
+                            <NewsletterSourceCard
+                              key={g.sourceEmail}
+                              group={g}
+                              onOpen={() => setPanelSource(g.sourceEmail)}
+                            />
+                          ))}
+                        </div>
+                        {/* Desktop: two columns */}
+                        <div className="hidden lg:flex gap-3 items-start">
+                          <div className="flex-1 min-w-0 flex flex-col gap-3">
+                            {left.map((g) => (
+                              <NewsletterSourceCard
+                                key={g.sourceEmail}
+                                group={g}
+                                onOpen={() => setPanelSource(g.sourceEmail)}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex-1 min-w-0 flex flex-col gap-3">
+                            {right.map((g) => (
+                              <NewsletterSourceCard
+                                key={g.sourceEmail}
+                                group={g}
+                                onOpen={() => setPanelSource(g.sourceEmail)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-3 pt-2 pb-4">
+                      <button
+                        disabled={page === 1}
+                        onClick={() => {
+                          setPage((p) => p - 1);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        className="h-8 px-3 text-xs rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        ← Prev
+                      </button>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {page} / {totalPages}
+                      </span>
+                      <button
+                        disabled={page === totalPages}
+                        onClick={() => {
+                          setPage((p) => p + 1);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        className="h-8 px-3 text-xs rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           )}
         </main>
       )}

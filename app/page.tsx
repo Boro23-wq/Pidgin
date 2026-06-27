@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Ban,
+  Check,
   ChevronDown,
   Linkedin,
   Mail,
@@ -10,32 +11,131 @@ import {
   Search,
   Sparkles,
   Twitter,
+  X,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 // ---------------------------------------------------------------------------
-// Floating particles (background animation)
+// Floating particles
 // ---------------------------------------------------------------------------
 const PARTICLES = [
-  { x: "8%",  size: "2px",  duration: "22s", delay: "0s",    drift: "18px",  alpha: "0.45" },
-  { x: "16%", size: "3px",  duration: "18s", delay: "3s",    drift: "-20px", alpha: "0.3"  },
-  { x: "25%", size: "2px",  duration: "25s", delay: "7s",    drift: "14px",  alpha: "0.4"  },
-  { x: "33%", size: "4px",  duration: "20s", delay: "1s",    drift: "-16px", alpha: "0.25" },
-  { x: "42%", size: "2px",  duration: "28s", delay: "9s",    drift: "22px",  alpha: "0.35" },
-  { x: "50%", size: "3px",  duration: "16s", delay: "4s",    drift: "-12px", alpha: "0.4"  },
-  { x: "58%", size: "2px",  duration: "23s", delay: "12s",   drift: "18px",  alpha: "0.3"  },
-  { x: "67%", size: "4px",  duration: "19s", delay: "2s",    drift: "-24px", alpha: "0.25" },
-  { x: "75%", size: "2px",  duration: "26s", delay: "6s",    drift: "16px",  alpha: "0.4"  },
-  { x: "83%", size: "3px",  duration: "21s", delay: "10s",   drift: "-18px", alpha: "0.35" },
-  { x: "91%", size: "2px",  duration: "17s", delay: "5s",    drift: "12px",  alpha: "0.3"  },
-  { x: "12%", size: "3px",  duration: "24s", delay: "14s",   drift: "-14px", alpha: "0.25" },
-  { x: "70%", size: "2px",  duration: "27s", delay: "8s",    drift: "20px",  alpha: "0.35" },
-  { x: "44%", size: "3px",  duration: "15s", delay: "16s",   drift: "-10px", alpha: "0.3"  },
+  {
+    x: "8%",
+    size: "2px",
+    duration: "22s",
+    delay: "0s",
+    drift: "18px",
+    alpha: "0.45",
+  },
+  {
+    x: "16%",
+    size: "3px",
+    duration: "18s",
+    delay: "3s",
+    drift: "-20px",
+    alpha: "0.3",
+  },
+  {
+    x: "25%",
+    size: "2px",
+    duration: "25s",
+    delay: "7s",
+    drift: "14px",
+    alpha: "0.4",
+  },
+  {
+    x: "33%",
+    size: "4px",
+    duration: "20s",
+    delay: "1s",
+    drift: "-16px",
+    alpha: "0.25",
+  },
+  {
+    x: "42%",
+    size: "2px",
+    duration: "28s",
+    delay: "9s",
+    drift: "22px",
+    alpha: "0.35",
+  },
+  {
+    x: "50%",
+    size: "3px",
+    duration: "16s",
+    delay: "4s",
+    drift: "-12px",
+    alpha: "0.4",
+  },
+  {
+    x: "58%",
+    size: "2px",
+    duration: "23s",
+    delay: "12s",
+    drift: "18px",
+    alpha: "0.3",
+  },
+  {
+    x: "67%",
+    size: "4px",
+    duration: "19s",
+    delay: "2s",
+    drift: "-24px",
+    alpha: "0.25",
+  },
+  {
+    x: "75%",
+    size: "2px",
+    duration: "26s",
+    delay: "6s",
+    drift: "16px",
+    alpha: "0.4",
+  },
+  {
+    x: "83%",
+    size: "3px",
+    duration: "21s",
+    delay: "10s",
+    drift: "-18px",
+    alpha: "0.35",
+  },
+  {
+    x: "91%",
+    size: "2px",
+    duration: "17s",
+    delay: "5s",
+    drift: "12px",
+    alpha: "0.3",
+  },
+  {
+    x: "12%",
+    size: "3px",
+    duration: "24s",
+    delay: "14s",
+    drift: "-14px",
+    alpha: "0.25",
+  },
+  {
+    x: "70%",
+    size: "2px",
+    duration: "27s",
+    delay: "8s",
+    drift: "20px",
+    alpha: "0.35",
+  },
+  {
+    x: "44%",
+    size: "3px",
+    duration: "15s",
+    delay: "16s",
+    drift: "-10px",
+    alpha: "0.3",
+  },
 ];
 
 function FloatingParticles() {
@@ -45,14 +145,16 @@ function FloatingParticles() {
         <span
           key={i}
           className="particle"
-          style={{
-            "--x": p.x,
-            "--size": p.size,
-            "--duration": p.duration,
-            "--delay": p.delay,
-            "--drift-x": p.drift,
-            "--alpha": p.alpha,
-          } as React.CSSProperties}
+          style={
+            {
+              "--x": p.x,
+              "--size": p.size,
+              "--duration": p.duration,
+              "--delay": p.delay,
+              "--drift-x": p.drift,
+              "--alpha": p.alpha,
+            } as React.CSSProperties
+          }
         />
       ))}
     </>
@@ -64,13 +166,597 @@ function FloatingParticles() {
 // ---------------------------------------------------------------------------
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" as const },
+  },
 };
-
 const stagger = (delay = 0.08) => ({
   hidden: {},
   visible: { transition: { staggerChildren: delay } },
 });
+
+// ---------------------------------------------------------------------------
+// How it works — illustrated step cards (auto-looping)
+// ---------------------------------------------------------------------------
+
+function ConnectIllustration() {
+  const [phase, setPhase] = useState<"idle" | "loading" | "done">("idle");
+
+  useEffect(() => {
+    const ts: ReturnType<typeof setTimeout>[] = [];
+    const add = (fn: () => void, ms: number) => {
+      const t = setTimeout(fn, ms);
+      ts.push(t);
+      return t;
+    };
+    function loop(offset = 0) {
+      add(() => setPhase("idle"), offset);
+      add(() => setPhase("loading"), offset + 1400);
+      add(() => setPhase("done"), offset + 2500);
+      add(() => loop(), offset + 5200);
+    }
+    loop(900);
+    return () => ts.forEach(clearTimeout);
+  }, []);
+
+  return (
+    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 space-y-2 text-left">
+      <div className="flex items-center gap-2">
+        <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center shrink-0">
+          <span
+            className="text-white font-black leading-none"
+            style={{ fontSize: 8 }}
+          >
+            G
+          </span>
+        </div>
+        <span className="text-[11px] font-medium">Gmail OAuth</span>
+        <AnimatePresence>
+          {phase === "done" && (
+            <motion.span
+              key="badge"
+              initial={{ opacity: 0, scale: 0.75 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="ml-auto text-[10px] text-emerald-500 font-medium flex items-center gap-0.5"
+            >
+              <Check className="w-3 h-3" /> Connected
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="space-y-1">
+        {[
+          { label: "Read emails", ok: true },
+          { label: "Send emails", ok: false },
+          { label: "Delete emails", ok: false },
+        ].map(({ label, ok }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            {ok ? (
+              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+            ) : (
+              <X className="w-3 h-3 text-muted-foreground/25 shrink-0" />
+            )}
+            <span
+              className={`text-[10px] ${ok ? "text-foreground/65" : "text-muted-foreground/25 line-through"}`}
+            >
+              {label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <motion.div
+        animate={{
+          backgroundColor:
+            phase === "done" ? "hsl(142 71% 45%)" : "hsl(var(--primary))",
+        }}
+        transition={{ duration: 0.28 }}
+        className="h-6 rounded flex items-center justify-center"
+      >
+        <AnimatePresence mode="wait">
+          {phase === "idle" && (
+            <motion.span
+              key="i"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
+              className="text-white text-[10px] font-medium"
+            >
+              Connect Gmail
+            </motion.span>
+          )}
+          {phase === "loading" && (
+            <motion.span
+              key="l"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
+              className="text-white/80 text-[10px] flex items-center gap-1.5"
+            >
+              <span className="w-2.5 h-2.5 rounded-full border border-white/40 border-t-white animate-spin inline-block" />
+              Authorizing
+            </motion.span>
+          )}
+          {phase === "done" && (
+            <motion.span
+              key="d"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
+              className="text-white text-[10px] font-medium flex items-center gap-1"
+            >
+              <Check className="w-3 h-3" /> Access granted
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </div>
+  );
+}
+
+function AIReadsIllustration() {
+  const [count, setCount] = useState(0);
+  const bullets = [
+    "OpenAI cuts inference costs 40%",
+    "Improves multi-step reasoning",
+    "Available via API immediately",
+  ];
+
+  useEffect(() => {
+    const ts: ReturnType<typeof setTimeout>[] = [];
+    const add = (fn: () => void, ms: number) => {
+      const t = setTimeout(fn, ms);
+      ts.push(t);
+    };
+    function loop(offset = 0) {
+      add(() => setCount(0), offset);
+      add(() => setCount(1), offset + 600);
+      add(() => setCount(2), offset + 1200);
+      add(() => setCount(3), offset + 1800);
+      add(() => loop(), offset + 4600);
+    }
+    loop(700);
+    return () => ts.forEach(clearTimeout);
+  }, []);
+
+  return (
+    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 text-left">
+      <div className="flex items-center gap-2 pb-2 mb-2 border-b border-border/30">
+        <div className="w-5 h-5 rounded bg-amber-400/15 flex items-center justify-center shrink-0">
+          <Mail className="w-3 h-3 text-amber-500" />
+        </div>
+        <span className="text-[10px] text-muted-foreground">Morning Brew</span>
+        <div className="ml-auto flex items-center gap-1 bg-primary/10 rounded px-1.5 py-0.5">
+          <Sparkles className="w-2.5 h-2.5 text-primary" />
+          <span className="text-[9px] text-primary font-medium">AI</span>
+        </div>
+      </div>
+      <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest font-semibold mb-2">
+        Key points
+      </p>
+      <div className="space-y-1.5 min-h-[54px]">
+        {bullets.map((pt, i) => (
+          <AnimatePresence key={pt}>
+            {count > i && (
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.24, ease: "easeOut" }}
+                className="flex items-start gap-1.5"
+              >
+                <div className="w-1 h-1 rounded-full bg-primary mt-[5px] shrink-0" />
+                <span className="text-[10px] text-foreground/65 leading-snug">
+                  {pt}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PostsIllustration() {
+  const lines = [
+    "Just read: OpenAI cut costs by 40% —",
+    "finally makes production AI viable",
+    "at real scale. Worth sharing. 🧵",
+  ];
+  const [shown, setShown] = useState(0);
+  const [actions, setActions] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const ts: ReturnType<typeof setTimeout>[] = [];
+    const add = (fn: () => void, ms: number) => {
+      const t = setTimeout(fn, ms);
+      ts.push(t);
+    };
+    function loop(offset = 0) {
+      add(() => {
+        setShown(0);
+        setActions(false);
+        setCopied(false);
+      }, offset);
+      add(() => setShown(1), offset + 500);
+      add(() => setShown(2), offset + 1100);
+      add(() => setShown(3), offset + 1700);
+      add(() => setActions(true), offset + 2100);
+      add(() => setCopied(true), offset + 3400);
+      add(() => loop(), offset + 5800);
+    }
+    loop(600);
+    return () => ts.forEach(clearTimeout);
+  }, []);
+
+  return (
+    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 text-left">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Linkedin className="w-3.5 h-3.5 text-[#0077B5]" />
+        <span className="text-[10px] font-semibold text-foreground/65">
+          LinkedIn
+        </span>
+        {actions && (
+          <motion.div
+            animate={
+              copied
+                ? { backgroundColor: "hsl(142 71% 45%)" }
+                : { backgroundColor: "hsl(var(--primary))" }
+            }
+            transition={{ duration: 0.25 }}
+            className="ml-auto flex items-center gap-1 px-2 h-4.5 rounded text-white text-[9px] font-medium"
+            style={{ padding: "1px 8px" }}
+          >
+            {copied && <Check className="w-2.5 h-2.5" />}
+            <span>{copied ? "Copied" : "Copy"}</span>
+          </motion.div>
+        )}
+      </div>
+      <div className="space-y-0.5 min-h-[42px]">
+        {lines.map((line, i) => (
+          <AnimatePresence key={line}>
+            {shown > i && (
+              <motion.p
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="text-[10px] text-foreground/65 leading-relaxed"
+              >
+                {line}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Everything you need — feature mini-illustrations (hover-triggered)
+// ---------------------------------------------------------------------------
+
+function InboxIllustration({ active }: { active: boolean }) {
+  const rows = [
+    { name: "Morning Brew", real: true },
+    { name: "TLDR Newsletter", real: true },
+    { name: "Job Alert: SWE @ Acme", real: false },
+  ];
+  return (
+    <div className="pt-3 border-t border-border/25 space-y-1 mt-3">
+      {rows.map((row) => (
+        <motion.div
+          key={row.name}
+          animate={
+            !row.real && active ? { opacity: 0, x: 12 } : { opacity: 1, x: 0 }
+          }
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className={`flex items-center gap-2 h-5 px-1.5 rounded transition-colors duration-300 ${active && row.real ? "border-l-2 border-primary/50 bg-primary/5 pl-1" : ""}`}
+        >
+          <div
+            className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-300 ${row.real ? (active ? "bg-primary" : "bg-primary/40") : "bg-muted-foreground/20"}`}
+          />
+          <span
+            className={`text-[10px] truncate ${row.real ? "text-foreground/60" : "text-muted-foreground/30 line-through"}`}
+          >
+            {row.name}
+          </span>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function SummaryIllustration({ active }: { active: boolean }) {
+  const points = [
+    "Cost reduction confirmed",
+    "API live immediately",
+    "No quality loss",
+  ];
+  return (
+    <div className="pt-3 border-t border-border/25 min-h-[54px] mt-3">
+      <AnimatePresence mode="wait">
+        {!active ? (
+          <motion.div
+            key="skeleton"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-1.5"
+          >
+            {[65, 85, 50].map((w, i) => (
+              <div
+                key={i}
+                className="h-1.5 rounded-full bg-muted-foreground/15"
+                style={{ width: `${w}%` }}
+              />
+            ))}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="bullets"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-1.5"
+          >
+            {points.map((pt, i) => (
+              <motion.div
+                key={pt}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.09, duration: 0.22 }}
+                className="flex items-start gap-1.5"
+              >
+                <div className="w-1 h-1 rounded-full bg-primary mt-[5px] shrink-0" />
+                <span className="text-[10px] text-foreground/65 leading-tight">
+                  {pt}
+                </span>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SocialIllustration({ active }: { active: boolean }) {
+  const platforms = [
+    {
+      icon: <Linkedin className="w-3 h-3" />,
+      label: "LinkedIn",
+      color: "text-[#0077B5]",
+      ring: "border-[#0077B5]/25 bg-[#0077B5]/8",
+    },
+    {
+      icon: <Twitter className="w-3 h-3" />,
+      label: "Twitter",
+      color: "text-sky-400",
+      ring: "border-sky-400/25 bg-sky-400/8",
+    },
+  ];
+  return (
+    <div className="pt-3 border-t border-border/25 flex gap-2 mt-3">
+      {platforms.map(({ icon, label, color, ring }, i) => (
+        <motion.div
+          key={label}
+          animate={
+            active
+              ? { scale: 1, opacity: 1, y: 0 }
+              : { scale: 0.9, opacity: 0.4, y: 3 }
+          }
+          transition={{
+            delay: i * 0.07,
+            duration: 0.22,
+            type: "spring",
+            stiffness: 420,
+            damping: 20,
+          }}
+          className={`flex items-center gap-1.5 px-2.5 h-6 rounded-md border ${ring} ${color}`}
+        >
+          {icon}
+          <span className="text-[10px] font-medium">{label}</span>
+          <AnimatePresence>
+            {active && (
+              <motion.span
+                key="chk"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                transition={{
+                  delay: i * 0.07 + 0.12,
+                  type: "spring",
+                  stiffness: 500,
+                }}
+              >
+                <Check className="w-2.5 h-2.5" />
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function SearchIllustration({ active }: { active: boolean }) {
+  const query = "openai cost";
+  const [chars, setChars] = useState(0);
+  const [result, setResult] = useState(false);
+
+  useEffect(() => {
+    if (!active) {
+      setChars(0);
+      setResult(false);
+      return;
+    }
+    const ts: ReturnType<typeof setTimeout>[] = [];
+    query.split("").forEach((_, i) => {
+      const t = setTimeout(() => setChars(i + 1), i * 55);
+      ts.push(t);
+    });
+    const t = setTimeout(() => setResult(true), query.length * 55 + 180);
+    ts.push(t);
+    return () => ts.forEach(clearTimeout);
+  }, [active]);
+
+  return (
+    <div className="pt-3 border-t border-border/25 space-y-1.5 mt-3">
+      <div className="flex items-center gap-1.5 h-6 rounded-md bg-background border border-border/60 px-2">
+        <Search className="w-2.5 h-2.5 text-muted-foreground/40 shrink-0" />
+        <span className="text-[10px] text-foreground/60 flex-1 min-w-0 flex items-center">
+          {query.slice(0, chars)}
+          {active && chars < query.length && (
+            <motion.span
+              animate={{ opacity: [1, 0, 1] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+              className="inline-block w-px h-[9px] bg-primary/70 ml-px"
+            />
+          )}
+        </span>
+      </div>
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="rounded-md bg-primary/6 border border-primary/15 px-2 py-1.5"
+          >
+            <p className="text-[9px] font-medium text-foreground/70">
+              OpenAI cuts costs by 40%
+            </p>
+            <p className="text-[9px] text-muted-foreground/45">
+              Morning Brew · 2d ago
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function BlockIllustration({ active }: { active: boolean }) {
+  return (
+    <div className="pt-3 border-t border-border/25 mt-3">
+      <div className="relative overflow-hidden h-7 rounded-md">
+        <motion.div
+          animate={active ? { opacity: 0, x: -12 } : { opacity: 1, x: 0 }}
+          transition={{ duration: 0.3 }}
+          className="absolute inset-0 flex items-center gap-2 px-2 bg-secondary/40 rounded-md"
+        >
+          <Mail className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+          <span className="text-[10px] text-foreground/50">
+            promo@company.com
+          </span>
+          <motion.div
+            animate={active ? { opacity: 0 } : { opacity: 1 }}
+            className="ml-auto flex items-center gap-1 text-muted-foreground/30"
+          >
+            <Ban className="w-3 h-3" />
+          </motion.div>
+        </motion.div>
+        <AnimatePresence>
+          {active && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ delay: 0.2 }}
+              className="absolute inset-0 flex items-center justify-center gap-1.5 text-muted-foreground/45"
+            >
+              <Ban className="w-3 h-3 text-red-400/60" />
+              <span className="text-[10px]">Sender blocked</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function SyncIllustration({ active }: { active: boolean }) {
+  const [spinning, setSpinning] = useState(false);
+
+  useEffect(() => {
+    if (!active) {
+      setSpinning(false);
+      return;
+    }
+    setSpinning(true);
+    const t = setTimeout(() => setSpinning(false), 700);
+    return () => clearTimeout(t);
+  }, [active]);
+
+  return (
+    <div className="pt-3 border-t border-border/25 flex items-center gap-2 mt-3">
+      <motion.div
+        animate={{ rotate: spinning ? 360 : 0 }}
+        transition={{ duration: 0.7, ease: "easeInOut" }}
+      >
+        <RefreshCw className="w-3.5 h-3.5 text-muted-foreground/40" />
+      </motion.div>
+      <span className="text-[10px] text-muted-foreground/40">
+        {active ? "Syncing…" : "Last synced 2h ago"}
+      </span>
+      <AnimatePresence>
+        {active && !spinning && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.7, x: -4 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ type: "spring", stiffness: 500, damping: 22 }}
+            className="ml-auto px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-[9px] font-semibold"
+          >
+            +3 new
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Feature card with managed hover state
+function FeatureCard({
+  icon,
+  title,
+  desc,
+  illustration,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  illustration: (active: boolean) => React.ReactNode;
+}) {
+  const [active, setActive] = useState(false);
+  return (
+    <motion.div
+      variants={fadeUp}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      className="group relative rounded-xl border border-border/60 bg-card/60 p-5 flex flex-col cursor-default overflow-hidden"
+    >
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/35 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2.5">
+        {icon}
+      </div>
+      <h3 className="text-sm font-semibold mb-1">{title}</h3>
+      <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+      {illustration(active)}
+    </motion.div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Landing page
@@ -78,73 +764,108 @@ const stagger = (delay = 0.08) => ({
 function LandingPage() {
   const router = useRouter();
 
-  const features = [
+  const steps = [
+    {
+      n: "01",
+      title: "Connect Gmail",
+      body: "Authorize read-only access in 30 seconds. We never send or modify anything.",
+      illustration: <ConnectIllustration />,
+    },
+    {
+      n: "02",
+      title: "AI reads for you",
+      body: "Pidgin filters noise and uses Claude to distill every newsletter into key points.",
+      illustration: <AIReadsIllustration />,
+    },
+    {
+      n: "03",
+      title: "Posts are ready",
+      body: "One-click LinkedIn & Twitter drafts from any summary — copy and share instantly.",
+      illustration: <PostsIllustration />,
+    },
+  ];
+
+  const features: {
+    icon: React.ReactNode;
+    title: string;
+    desc: string;
+    illustration: (active: boolean) => React.ReactNode;
+  }[] = [
     {
       icon: <Mail className="w-4 h-4" />,
       title: "Newsletter-only inbox",
       desc: "Filters out job alerts, bank emails, and event invites. Only real newsletters pass through.",
+      illustration: (a) => <InboxIllustration active={a} />,
     },
     {
       icon: <Sparkles className="w-4 h-4" />,
       title: "AI summaries",
       desc: "Claude distills each issue into key points and a plain-English digest — no skimming needed.",
+      illustration: (a) => <SummaryIllustration active={a} />,
     },
     {
       icon: <Linkedin className="w-4 h-4" />,
       title: "Social posts ready",
       desc: "One-click LinkedIn and Twitter drafts generated from every newsletter, ready to copy.",
+      illustration: (a) => <SocialIllustration active={a} />,
     },
     {
       icon: <Search className="w-4 h-4" />,
       title: "Search & bookmark",
       desc: "Full-text search across all summaries. Bookmark issues to revisit when you need them.",
+      illustration: (a) => <SearchIllustration active={a} />,
     },
     {
       icon: <Ban className="w-4 h-4" />,
       title: "Block senders",
       desc: "Mute any sender with one click — they never show up in your digest again.",
+      illustration: (a) => <BlockIllustration active={a} />,
     },
     {
       icon: <RefreshCw className="w-4 h-4" />,
       title: "On-demand sync",
       desc: "Sync whenever you want. Pidgin fetches the latest from your Gmail in seconds.",
+      illustration: (a) => <SyncIllustration active={a} />,
     },
-  ];
-
-  const steps = [
-    { n: "01", title: "Connect Gmail", body: "Authorize read-only access in 30 seconds. We never send or modify anything." },
-    { n: "02", title: "AI reads for you", body: "Pidgin filters noise and uses Claude to distill every newsletter into key points." },
-    { n: "03", title: "Posts are ready", body: "One-click LinkedIn & Twitter drafts from any summary — copy and share instantly." },
   ];
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-
-      {/* ── Ambient background ─────────────────────────────────────────────── */}
+      {/* ── Ambient background ──────────────────────────────────────────────── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute -top-48 -left-48 w-[600px] h-[600px] rounded-full"
-          style={{ background: "radial-gradient(circle, hsl(199 89% 48% / 0.06) 0%, transparent 65%)" }}
+          style={{
+            background:
+              "radial-gradient(circle, hsl(199 89% 48% / 0.06) 0%, transparent 65%)",
+          }}
         />
         <div
           className="absolute top-[30%] right-[-20%] w-[500px] h-[500px] rounded-full"
-          style={{ background: "radial-gradient(circle, hsl(250 80% 60% / 0.04) 0%, transparent 65%)" }}
+          style={{
+            background:
+              "radial-gradient(circle, hsl(250 80% 60% / 0.04) 0%, transparent 65%)",
+          }}
         />
         <div
           className="absolute -bottom-48 left-[20%] w-[480px] h-[480px] rounded-full"
-          style={{ background: "radial-gradient(circle, hsl(199 89% 48% / 0.05) 0%, transparent 65%)" }}
+          style={{
+            background:
+              "radial-gradient(circle, hsl(199 89% 48% / 0.05) 0%, transparent 65%)",
+          }}
         />
         <div
           className="absolute inset-0 opacity-[0.018]"
           style={{
-            backgroundImage: "radial-gradient(circle, hsl(var(--foreground)) 1px, transparent 1px)",
+            backgroundImage:
+              "radial-gradient(circle, hsl(var(--foreground)) 1px, transparent 1px)",
             backgroundSize: "28px 28px",
           }}
         />
         <FloatingParticles />
       </div>
 
-      {/* ── Nav ────────────────────────────────────────────────────────────── */}
+      {/* ── Nav ─────────────────────────────────────────────────────────────── */}
       <motion.header
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -155,15 +876,14 @@ function LandingPage() {
           <div className="flex items-center justify-between py-3">
             <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/pidgin-main.png" alt="Pidgin" className="w-7 h-7 rounded-lg" />
-              <span className="font-semibold text-sm tracking-tight">Pidgin</span>
+              <img src="/pidgin-main.png" alt="Pidgin" className="w-8 h-8" />
             </div>
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className="text-xs text-muted-foreground hover:text-primary hover:bg-transparent"
                 onClick={() => router.push("/sign-in")}
               >
                 Sign in
@@ -181,7 +901,7 @@ function LandingPage() {
         </div>
       </motion.header>
 
-      {/* ── Hero ───────────────────────────────────────────────────────────── */}
+      {/* ── Hero ────────────────────────────────────────────────────────────── */}
       <section className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-14 text-center">
         <motion.div
           initial="hidden"
@@ -208,7 +928,10 @@ function LandingPage() {
             <br />
             <span
               className="bg-clip-text text-transparent"
-              style={{ backgroundImage: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)" }}
+              style={{
+                backgroundImage:
+                  "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
+              }}
             >
               actually read.
             </span>
@@ -218,11 +941,14 @@ function LandingPage() {
             variants={fadeUp}
             className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed"
           >
-            Pidgin connects to Gmail, filters the noise, and uses Claude AI to distill
-            what matters — then drafts your LinkedIn &amp; Twitter posts in seconds.
+            Pidgin connects to Gmail, filters the noise, and uses AI to distill
+            what matters, then drafts your LinkedIn &amp; X posts in seconds.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="flex items-center justify-center gap-3 flex-wrap">
+          <motion.div
+            variants={fadeUp}
+            className="flex items-center justify-center gap-3 flex-wrap"
+          >
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
@@ -236,27 +962,34 @@ function LandingPage() {
               <motion.span
                 className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -skew-x-12"
                 animate={{ x: ["-100%", "200%"] }}
-                transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 2.5, ease: "easeInOut" }}
+                transition={{
+                  duration: 2.2,
+                  repeat: Infinity,
+                  repeatDelay: 2.5,
+                  ease: "easeInOut",
+                }}
               />
             </motion.button>
-
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => router.push("/sign-in")}
-              className="inline-flex items-center gap-2 px-7 h-11 rounded-lg border border-border/70 bg-card/50 text-sm font-medium hover:border-border hover:bg-card transition-all"
+              className="inline-flex items-center gap-2 px-7 h-11 rounded-lg border border-border/70 bg-card/50 text-sm font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors duration-200"
             >
               Sign in
             </motion.button>
           </motion.div>
 
-          <motion.p variants={fadeUp} className="mt-4 text-xs text-muted-foreground/40">
+          <motion.p
+            variants={fadeUp}
+            className="mt-4 text-xs text-muted-foreground/40"
+          >
             30-second setup · Gmail read-only · No email ever sent or modified
           </motion.p>
         </motion.div>
       </section>
 
-      {/* ── How it works ───────────────────────────────────────────────────── */}
+      {/* ── How it works ────────────────────────────────────────────────────── */}
       <section className="border-t border-border/50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <motion.h2
@@ -269,62 +1002,32 @@ function LandingPage() {
             How it works
           </motion.h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 relative">
-
-            {/* Line: box 1 right-edge → box 2 left-edge */}
-            <div
-              className="hidden sm:block absolute top-[19px] h-px overflow-hidden"
-              style={{ left: "calc(100%/6 + 22px)", right: "calc(50% + 22px)" }}
-            >
-              <div className="relative h-full w-full bg-border/50">
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/55 to-transparent"
-                  initial={{ x: "-100%" }}
-                  animate={{ x: "200%" }}
-                  transition={{ duration: 0.9, delay: 0.4, repeat: Infinity, repeatDelay: 3.8, ease: "easeInOut" }}
-                />
-              </div>
-            </div>
-
-            {/* Line: box 2 right-edge → box 3 left-edge */}
-            <div
-              className="hidden sm:block absolute top-[19px] h-px overflow-hidden"
-              style={{ left: "calc(50% + 22px)", right: "calc(100%/6 + 22px)" }}
-            >
-              <div className="relative h-full w-full bg-border/50">
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/55 to-transparent"
-                  initial={{ x: "-100%" }}
-                  animate={{ x: "200%" }}
-                  transition={{ duration: 0.9, delay: 1.5, repeat: Infinity, repeatDelay: 3.8, ease: "easeInOut" }}
-                />
-              </div>
-            </div>
-
-            {steps.map(({ n, title, body }, i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {steps.map(({ n, title, body, illustration }, i) => (
               <motion.div
                 key={n}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.45, delay: i * 0.12 }}
-                className="relative z-10 flex flex-col items-center text-center px-4 pb-6"
+                transition={{ duration: 0.45, delay: i * 0.1 }}
+                className="group rounded-xl border border-border/60 bg-card/50 p-5 flex flex-col overflow-hidden relative"
               >
-                <motion.div
-                  whileHover={{ scale: 1.08 }}
-                  className="w-10 h-10 rounded-xl border border-border/80 bg-card flex items-center justify-center mb-4 cursor-default"
-                >
-                  <span className="text-xs font-mono font-bold text-primary/60">{n}</span>
-                </motion.div>
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <span className="text-xs font-mono text-muted-foreground/35 mb-3">
+                  {n}
+                </span>
                 <h3 className="text-sm font-semibold mb-1.5">{title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{body}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {body}
+                </p>
+                {illustration}
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── Features ───────────────────────────────────────────────────────── */}
+      {/* ── Everything you need ─────────────────────────────────────────────── */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -340,7 +1043,10 @@ function LandingPage() {
             Built for people who actually{" "}
             <span
               className="bg-clip-text text-transparent"
-              style={{ backgroundImage: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 70%) 100%)" }}
+              style={{
+                backgroundImage:
+                  "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 70%) 100%)",
+              }}
             >
               care about signal.
             </span>
@@ -354,25 +1060,19 @@ function LandingPage() {
           variants={stagger(0.06)}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
         >
-          {features.map(({ icon, title, desc }) => (
-            <motion.div
-              key={title}
-              variants={fadeUp}
-              whileHover={{ y: -2, transition: { duration: 0.18 } }}
-              className="group relative rounded-xl border border-border/60 bg-card/60 p-5 flex flex-col gap-2.5 cursor-default overflow-hidden"
-            >
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                {icon}
-              </div>
-              <h3 className="text-sm font-semibold">{title}</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-            </motion.div>
+          {features.map((f) => (
+            <FeatureCard
+              key={f.title}
+              icon={f.icon}
+              title={f.title}
+              desc={f.desc}
+              illustration={f.illustration}
+            />
           ))}
         </motion.div>
       </section>
 
-      {/* ── Bottom CTA ─────────────────────────────────────────────────────── */}
+      {/* ── Bottom CTA ──────────────────────────────────────────────────────── */}
       <section className="border-t border-border/50">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -388,7 +1088,10 @@ function LandingPage() {
             Stop skimming.{" "}
             <span
               className="bg-clip-text text-transparent"
-              style={{ backgroundImage: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)" }}
+              style={{
+                backgroundImage:
+                  "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
+              }}
             >
               Start retaining.
             </span>
@@ -409,20 +1112,28 @@ function LandingPage() {
             <motion.span
               className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -skew-x-12"
               animate={{ x: ["-100%", "200%"] }}
-              transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 2.5, ease: "easeInOut" }}
+              transition={{
+                duration: 2.2,
+                repeat: Infinity,
+                repeatDelay: 2.5,
+                ease: "easeInOut",
+              }}
             />
           </motion.button>
         </motion.div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      {/* ── Footer ──────────────────────────────────────────────────────────── */}
       <footer className="border-t border-border/40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-primary flex items-center justify-center">
-              <Zap className="w-3 h-3 text-white" />
+            <div className="flex items-center gap-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/pidgin-main.png" alt="Pidgin" className="w-6 h-6" />
             </div>
-            <span className="text-xs text-muted-foreground/60 tracking-tight">Pidgin</span>
+            <span className="text-xs text-muted-foreground/60 tracking-wide">
+              Pidgin
+            </span>
           </div>
           <p className="text-xs text-muted-foreground/35">
             Read-only Gmail · No spam · No data sold
@@ -434,7 +1145,7 @@ function LandingPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Home — redirect signed-in users to /dashboard, show landing otherwise
+// Home — redirect signed-in users to /dashboard
 // ---------------------------------------------------------------------------
 export default function Home() {
   const { isSignedIn, isLoaded } = useUser();

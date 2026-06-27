@@ -21,6 +21,7 @@ export interface Summary {
   processed_date: string;
   category: string;
   source_url: string;
+  topic_key: string | null;
   is_bookmarked: boolean;
   is_read: boolean;
 }
@@ -29,12 +30,32 @@ export async function saveSummary(
   data: Omit<Summary, "id" | "created_at">,
   userId: string
 ) {
+  const payload: Record<string, unknown> = { ...data, user_id: userId };
   const { data: result, error } = await supabase
     .from("summaries")
-    .insert([{ ...data, user_id: userId }])
+    .insert([payload])
     .select();
 
-  if (error) throw error;
+  if (error) {
+    // topic_key column not yet migrated — retry without it
+    if (error.message?.includes("topic_key")) {
+      const fallback: Record<string, unknown> = { ...payload };
+      delete fallback.topic_key;
+      const { data: result2, error: error2 } = await supabase
+        .from("summaries")
+        .insert([fallback])
+        .select();
+      if (error2) {
+        // Duplicate story from same email — unique constraint too strict, skip silently
+        if (error2.code === "23505") return null;
+        throw error2;
+      }
+      return result2;
+    }
+    // Duplicate story from same email — unique constraint too strict, skip silently
+    if (error.code === "23505") return null;
+    throw error;
+  }
   return result;
 }
 
@@ -96,11 +117,35 @@ export async function deleteOldSummaries(userId: string, daysOld = 90): Promise<
     .from("summaries")
     .delete()
     .eq("user_id", userId)
+    .eq("is_bookmarked", false)
     .lt("created_at", cutoffDate.toISOString())
     .select();
 
   if (error) throw error;
   return data ? data.length : 0;
+}
+
+export async function dismissEmails(emailIds: string[], userId: string): Promise<void> {
+  if (!emailIds.length) return;
+  await supabase
+    .from("dismissed_emails")
+    .upsert(
+      emailIds.map((id) => ({ user_id: userId, email_id: id })),
+      { onConflict: "user_id,email_id" }
+    );
+}
+
+export async function getDismissedEmailIds(
+  emailIds: string[],
+  userId: string
+): Promise<Set<string>> {
+  if (!emailIds.length) return new Set();
+  const { data } = await supabase
+    .from("dismissed_emails")
+    .select("email_id")
+    .eq("user_id", userId)
+    .in("email_id", emailIds);
+  return new Set((data ?? []).map((r: { email_id: string }) => r.email_id));
 }
 
 export async function deleteSummary(id: string, userId: string): Promise<void> {

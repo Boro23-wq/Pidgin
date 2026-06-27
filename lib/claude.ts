@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonrepair } from "jsonrepair";
 
 const client = new Anthropic();
 
@@ -16,36 +17,59 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
-interface SummaryResult {
+export interface NewsletterStory {
+  title: string;
   summary: string;
   simpleExplanation: string;
   keyPoints: string[];
   category: Category;
+  sourceUrl: string;
+  topicKey: string;
 }
 
-export async function summarizeNewsletter(
+export async function extractNewsletterStories(
   content: string,
-  title: string
-): Promise<SummaryResult> {
-  const prompt = `You are a newsletter summarizer. Analyze this newsletter and return JSON with exactly these keys:
+  newsletterTitle: string,
+  links: Array<{ text: string; url: string }> = []
+): Promise<NewsletterStory[]> {
+  const linksSection =
+    links.length > 0
+      ? `Available links found in this email (pick sourceUrl from this list only — do not invent URLs):\n${links.map((l) => `- "${l.text}" → ${l.url}`).join("\n")}\n\n`
+      : "";
 
-{
-  "summary": "2-3 sentence factual summary",
-  "simpleExplanation": "plain-language explanation with a concrete example",
-  "keyPoints": ["takeaway 1", "takeaway 2", "takeaway 3"],
-  "category": "one of: AI & ML | Tech | Science | Business | Finance | Politics | Health | Startups | Other"
-}
+  const prompt = `You are a newsletter story extractor. Extract every distinct editorial news story from this newsletter.
 
-Newsletter Title: ${title}
+${linksSection}Return a JSON array:
+[
+  {
+    "title": "short descriptive headline (5-10 words)",
+    "summary": "comprehensive factual summary in 6-9 sentences — cover: (1) what happened and who's involved, (2) the key numbers, data, or quotes, (3) why this matters and what problem it solves or creates, (4) relevant context or background, (5) what comes next or what to watch for",
+    "simpleExplanation": "1-2 plain-language sentences explaining this as if to someone outside the industry — use a concrete analogy or real-world comparison to make it click",
+    "keyPoints": ["takeaway 1", "takeaway 2", "takeaway 3", "takeaway 4"],
+    "category": "one of: AI & ML | Tech | Science | Business | Finance | Politics | Health | Startups | Other",
+    "sourceUrl": "the most relevant URL from the links list above for this story, or empty string if none fits",
+    "topicKey": "kebab-case slug for the main topic, e.g. openai-gpt56-government-approval or europe-us-ac-debate"
+  }
+]
+
+Rules:
+- Extract ALL distinct editorial stories — no cap on the number
+- One object per story — do not merge separate stories into one
+- EXCLUDE: sponsored or advertiser content (anything marked "Sponsored By", "Partner", "Advertisement", "Brought to you by"), link roundups without editorial explanation, bare section headers, unsubscribe footers, boilerplate
+- Minimum to include: ~3 sentences of real editorial content about a specific topic
+- sourceUrl must come from the links list above — never invent or hallucinate a URL
+- topicKey should be 2-5 kebab words that uniquely identify the news event
+
+Newsletter source: ${newsletterTitle}
 
 Content:
 ${content}
 
-Return only valid JSON, nothing else.`;
+Return only a valid JSON array, nothing else.`;
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 800,
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 3000,
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -54,13 +78,99 @@ Return only valid JSON, nothing else.`;
     throw new Error("No text response from Claude");
   }
 
-  const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Could not parse JSON from response");
+  const raw = textContent.text;
 
-  const result = JSON.parse(jsonMatch[0]) as SummaryResult;
-  // Validate category
-  if (!CATEGORIES.includes(result.category)) result.category = "Other";
-  return result;
+  // Parse: try array first, then unwrap {stories:[...]} wrapper.
+  // jsonrepair handles unescaped quotes/newlines/control chars that Claude occasionally emits.
+  let parsed: unknown;
+  try {
+    const arrayMatch = raw.match(/\[[\s\S]*\]/);
+    const candidate = arrayMatch ? arrayMatch[0] : raw;
+    try {
+      parsed = JSON.parse(candidate);
+    } catch {
+      parsed = JSON.parse(jsonrepair(candidate));
+    }
+    if (!Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      parsed = obj.stories ?? obj.items ?? obj.data ?? [];
+    }
+  } catch (err) {
+    console.error("[claude] JSON parse failed, skipping newsletter:", err);
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  const validLinks = new Set(links.map((l) => l.url));
+
+  return (parsed as NewsletterStory[]).map((s) => ({
+    title: String(s.title ?? "").trim(),
+    summary: String(s.summary ?? "").trim(),
+    simpleExplanation: String(s.simpleExplanation ?? "").trim(),
+    keyPoints: Array.isArray(s.keyPoints) ? s.keyPoints.map(String) : [],
+    category: CATEGORIES.includes(s.category as Category)
+      ? (s.category as Category)
+      : "Other",
+    sourceUrl:
+      s.sourceUrl && validLinks.has(s.sourceUrl) ? s.sourceUrl : "",
+    topicKey: String(s.topicKey ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, ""),
+  }));
+}
+
+export async function batchFlagEmails(
+  emails: Array<{ id: string; fromName: string; subject: string }>
+): Promise<Set<string>> {
+  if (!emails.length) return new Set();
+
+  const list = emails
+    .map((e, i) => `${i + 1}. from="${e.fromName}" subject="${e.subject}"`)
+    .join("\n");
+
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 300,
+    messages: [
+      {
+        role: "user",
+        content: `Classify these emails. Return a JSON array of the NUMBERS that are NOT real newsletters.
+
+Flag these:
+- Social media notifications (likes, follows, comments, new followers, mentions)
+- Retail / shopping deals, coupons, % off, weekend sales, bonus credits
+- Event / venue / nightclub / concert / ticket promotions
+- Job alerts, resume services, career coaching, recruiting emails
+- SaaS product onboarding ("haven't used X yet", "let's fix that", "getting started with")
+- Transactional / account emails (receipts, confirmations, account activity)
+
+Keep as newsletters (do NOT flag):
+- Editorial news digests (tech, business, finance, AI, science, politics, health)
+- Opinion or analysis newsletters
+- Industry roundups with real editorial news content
+
+Emails:
+${list}
+
+Return ONLY a JSON array like [1, 4, 7]. Return [] if none to flag. No explanation.`,
+      },
+    ],
+  });
+
+  const text = response.content.find((b) => b.type === "text");
+  if (!text || text.type !== "text") return new Set();
+  const match = text.text.match(/\[[\d,\s]*\]/);
+  if (!match) return new Set();
+  const indices = JSON.parse(match[0]) as number[];
+  return new Set(
+    indices
+      .filter(Number.isInteger)
+      .map((i) => emails[i - 1]?.id)
+      .filter((id): id is string => Boolean(id))
+  );
 }
 
 export async function generateSocialPost(
