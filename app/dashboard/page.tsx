@@ -1319,7 +1319,7 @@ function NewsletterCard({
           : `rounded-xl border ${isExpanded ? "border-border/80 ring-1 ring-primary/20" : "border-border hover:border-primary/20 min-h-24"}`
       } ${!isRead && !isExpanded && !noOuterBorder ? "border-l-[3px] border-l-primary/60" : ""}`}
     >
-      <div className="px-4 sm:px-5 pt-3.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <div className="px-4 sm:px-5 pt-3.5 flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <span
             className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${catStyle}`}
@@ -1335,7 +1335,7 @@ function NewsletterCard({
           </span>
         </div>
 
-        <div className="flex items-center gap-0.5 flex-shrink-0">
+        <div className="flex items-center gap-0.5 self-end ml-auto">
           <button
             onClick={(e) => { e.stopPropagation(); onToggleRead(summary.id); }}
             title={isRead ? "Mark as unread" : "Mark as read"}
