@@ -768,19 +768,19 @@ function LandingPage() {
     {
       n: "01",
       title: "Connect Gmail",
-      body: "Authorize read-only access in 30 seconds. We never send or modify anything.",
+      body: "Authorize read-only access in 30 seconds. We never send, delete, or modify anything.",
       illustration: <ConnectIllustration />,
     },
     {
       n: "02",
-      title: "AI reads for you",
-      body: "Pidgin filters noise and uses Claude to distill every newsletter into key points.",
+      title: "AI reads every issue so you don't have to",
+      body: "Pidgin filters out noise and uses Claude to distill each newsletter into key points — no skimming.",
       illustration: <AIReadsIllustration />,
     },
     {
       n: "03",
-      title: "Posts are ready",
-      body: "One-click LinkedIn & Twitter drafts from any summary — copy and share instantly.",
+      title: "Get your briefing + post drafts, daily",
+      body: "A digest email every evening plus one-click LinkedIn & X drafts, ready to copy and share.",
       illustration: <PostsIllustration />,
     },
   ];
@@ -793,38 +793,38 @@ function LandingPage() {
   }[] = [
     {
       icon: <Mail className="w-4 h-4" />,
-      title: "Newsletter-only inbox",
-      desc: "Filters out job alerts, bank emails, and event invites. Only real newsletters pass through.",
+      title: "No more newsletter guilt",
+      desc: "Filters out job alerts, bank emails, and event invites. Only real newsletters make it through.",
       illustration: (a) => <InboxIllustration active={a} />,
     },
     {
       icon: <Sparkles className="w-4 h-4" />,
-      title: "AI summaries",
-      desc: "Claude distills each issue into key points and a plain-English digest — no skimming needed.",
+      title: "Key points in 10 seconds per issue",
+      desc: "Claude distills each newsletter into bullet points and a plain-English summary — no skimming needed.",
       illustration: (a) => <SummaryIllustration active={a} />,
     },
     {
       icon: <Linkedin className="w-4 h-4" />,
-      title: "Social posts ready",
-      desc: "One-click LinkedIn and Twitter drafts generated from every newsletter, ready to copy.",
+      title: "Stay visible without writing from scratch",
+      desc: "One-click LinkedIn and X drafts generated from every newsletter. Stay consistent without the effort.",
       illustration: (a) => <SocialIllustration active={a} />,
     },
     {
       icon: <Search className="w-4 h-4" />,
       title: "Search & bookmark",
-      desc: "Full-text search across all summaries. Bookmark issues to revisit when you need them.",
+      desc: "Full-text search across all summaries. Bookmark issues to revisit when you actually have time.",
       illustration: (a) => <SearchIllustration active={a} />,
     },
     {
       icon: <Ban className="w-4 h-4" />,
-      title: "Block senders",
+      title: "Block the noise",
       desc: "Mute any sender with one click — they never show up in your digest again.",
       illustration: (a) => <BlockIllustration active={a} />,
     },
     {
       icon: <RefreshCw className="w-4 h-4" />,
       title: "On-demand sync",
-      desc: "Sync whenever you want. Pidgin fetches the latest from your Gmail in seconds.",
+      desc: "Sync whenever you want. Pidgin fetches the latest from Gmail in seconds.",
       illustration: (a) => <SyncIllustration active={a} />,
     },
   ];
@@ -893,7 +893,7 @@ function LandingPage() {
                 className="text-xs gap-1.5"
                 onClick={() => router.push("/sign-up")}
               >
-                Get started
+                Join beta
                 <ChevronDown className="w-3 h-3 rotate-[-90deg]" />
               </Button>
             </div>
@@ -916,7 +916,7 @@ function LandingPage() {
                 transition={{ duration: 2, repeat: Infinity }}
                 className="w-1.5 h-1.5 rounded-full bg-primary"
               />
-              AI-powered newsletter digest
+              Now in alpha · invite only
             </div>
           </motion.div>
 
@@ -924,7 +924,7 @@ function LandingPage() {
             variants={fadeUp}
             className="text-5xl sm:text-6xl lg:text-[5.5rem] font-bold tracking-tight leading-[1.07] mb-5"
           >
-            Your newsletters,
+            You subscribed to
             <br />
             <span
               className="bg-clip-text text-transparent"
@@ -933,16 +933,19 @@ function LandingPage() {
                   "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
               }}
             >
-              actually read.
+              15 newsletters.
             </span>
+            <br />
+            You&apos;ve read 2.
           </motion.h1>
 
           <motion.p
             variants={fadeUp}
             className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed"
           >
-            Pidgin connects to Gmail, filters the noise, and uses AI to distill
-            what matters, then drafts your LinkedIn &amp; X posts in seconds.
+            Pidgin turns your newsletter backlog into a daily briefing — key
+            points, social posts ready to share, zero skimming. Built for
+            founders who are already too busy.
           </motion.p>
 
           <motion.div
@@ -956,7 +959,7 @@ function LandingPage() {
               className="relative inline-flex items-center gap-2 px-7 h-11 rounded-lg bg-primary text-white text-sm font-medium overflow-hidden transition-opacity hover:opacity-90"
             >
               <span className="relative z-10 flex items-center gap-2">
-                Get started free
+                Request access
                 <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
               </span>
               <motion.span
@@ -984,7 +987,7 @@ function LandingPage() {
             variants={fadeUp}
             className="mt-4 text-xs text-muted-foreground/40"
           >
-            30-second setup · Gmail read-only · No email ever sent or modified
+            30-second setup · Gmail read-only · Free during alpha
           </motion.p>
         </motion.div>
       </section>
@@ -1040,7 +1043,7 @@ function LandingPage() {
             Everything you need
           </h2>
           <p className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Built for people who actually{" "}
+            Built for founders who are{" "}
             <span
               className="bg-clip-text text-transparent"
               style={{
@@ -1048,7 +1051,7 @@ function LandingPage() {
                   "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 70%) 100%)",
               }}
             >
-              care about signal.
+              already too busy.
             </span>
           </p>
         </motion.div>
@@ -1072,6 +1075,125 @@ function LandingPage() {
         </motion.div>
       </section>
 
+      {/* ── Pricing ─────────────────────────────────────────────────────────── */}
+      <section className="border-t border-border/50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.45 }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-xs font-semibold tracking-widest text-muted-foreground/60 uppercase mb-3">
+              Pricing
+            </h2>
+            <p className="text-2xl sm:text-3xl font-bold tracking-tight">
+              Simple,{" "}
+              <span
+                className="bg-clip-text text-transparent"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 70%) 100%)",
+                }}
+              >
+                no surprises.
+              </span>
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+            {/* Alpha / Beta card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.45 }}
+              className="relative rounded-xl border-2 border-primary/40 bg-card/60 p-6 flex flex-col"
+            >
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-primary text-white text-[10px] font-semibold tracking-wide">
+                  <motion.span
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="w-1.5 h-1.5 rounded-full bg-white"
+                  />
+                  Alpha · Limited seats
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1 mt-2">Alpha / Beta</p>
+              <div className="flex items-baseline gap-1 mb-4">
+                <span className="text-4xl font-bold">Free</span>
+                <span className="text-sm text-muted-foreground/50">while seats last</span>
+              </div>
+              <ul className="space-y-2 mb-6 flex-1">
+                {[
+                  "Up to 20 newsletter sources",
+                  "Daily digest email",
+                  "AI summaries + key points",
+                  "LinkedIn & X post drafts",
+                  "Shareable summary cards",
+                ].map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-foreground/70">
+                    <Check className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => router.push("/sign-up")}
+                className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Join the beta →
+              </motion.button>
+              <p className="text-[10px] text-muted-foreground/35 text-center mt-3">
+                Free during alpha. 60 days notice before any paid tier goes live.
+              </p>
+            </motion.div>
+
+            {/* Pro card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.45, delay: 0.1 }}
+              className="rounded-xl border border-border/50 bg-card/40 p-6 flex flex-col opacity-70"
+            >
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1">Pro</p>
+              <div className="flex items-baseline gap-1 mb-4">
+                <span className="text-4xl font-bold">$12</span>
+                <span className="text-sm text-muted-foreground/50">/mo</span>
+              </div>
+              <ul className="space-y-2 mb-6 flex-1">
+                {[
+                  "Unlimited newsletter sources",
+                  "Priority Gmail sync",
+                  "Custom digest time",
+                  "Everything in beta",
+                  "Early access to new features",
+                ].map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-foreground/50">
+                    <Check className="w-3.5 h-3.5 text-muted-foreground/40 mt-0.5 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                disabled
+                className="w-full h-10 rounded-lg border border-border/60 text-sm font-medium text-muted-foreground/40 cursor-not-allowed"
+              >
+                Coming soon
+              </button>
+              <p className="text-[10px] text-muted-foreground/30 text-center mt-3">
+                Launching after beta. Join now to lock in early pricing.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Bottom CTA ──────────────────────────────────────────────────────── */}
       <section className="border-t border-border/50">
         <motion.div
@@ -1085,7 +1207,7 @@ function LandingPage() {
             Ready to start?
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3 leading-tight">
-            Stop skimming.{" "}
+            Your competitors are reading this stuff.{" "}
             <span
               className="bg-clip-text text-transparent"
               style={{
@@ -1093,11 +1215,11 @@ function LandingPage() {
                   "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
               }}
             >
-              Start retaining.
+              You can skim it in 30 seconds.
             </span>
           </h2>
           <p className="text-muted-foreground text-sm mb-7">
-            Free to use. Just bring your Gmail.
+            Free during alpha. Just bring your Gmail.
           </p>
           <motion.button
             whileHover={{ scale: 1.03 }}
@@ -1106,7 +1228,7 @@ function LandingPage() {
             className="relative inline-flex items-center gap-2 px-8 h-11 rounded-lg bg-primary text-white text-sm font-medium overflow-hidden transition-opacity hover:opacity-90"
           >
             <span className="relative z-10 flex items-center gap-2">
-              Connect your Gmail
+              Join the beta
               <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
             </span>
             <motion.span
