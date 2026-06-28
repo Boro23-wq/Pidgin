@@ -462,15 +462,12 @@ function SyncOverlay({
               {([80, 62, 72] as const).map((widthPct, i) => (
                 <div
                   key={i}
-                  className="h-[3px] rounded-full bg-white/[0.06] overflow-hidden"
+                  className="h-[3px] rounded-full bg-foreground/[0.08] overflow-hidden"
                   style={{ width: `${widthPct}%` }}
                 >
                   <motion.div
-                    className="h-full w-full"
+                    className="h-full w-full bg-foreground/20"
                     style={{
-                      background:
-                        "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)",
-                    }}
                     animate={{ x: ["-100%", "200%"] }}
                     transition={{
                       duration: 1.8,
