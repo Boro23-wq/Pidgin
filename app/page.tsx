@@ -891,7 +891,7 @@ function LandingPage() {
               <Button
                 size="sm"
                 className="text-xs gap-1.5"
-                onClick={() => router.push("/sign-up")}
+                onClick={() => router.push("/waitlist")}
               >
                 Join alpha
                 <ChevronDown className="w-3 h-3 rotate-[-90deg]" />
@@ -955,7 +955,7 @@ function LandingPage() {
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => router.push("/sign-up")}
+              onClick={() => router.push("/waitlist")}
               className="relative inline-flex items-center gap-2 px-7 h-11 rounded-lg bg-primary text-white text-sm font-medium overflow-hidden transition-opacity hover:opacity-90"
             >
               <span className="relative z-10 flex items-center gap-2">
@@ -1143,7 +1143,7 @@ function LandingPage() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => router.push("/sign-up")}
+                onClick={() => router.push("/waitlist")}
                 className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Join the alpha →
@@ -1224,7 +1224,7 @@ function LandingPage() {
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
-            onClick={() => router.push("/sign-up")}
+            onClick={() => router.push("/waitlist")}
             className="relative inline-flex items-center gap-2 px-8 h-11 rounded-lg bg-primary text-white text-sm font-medium overflow-hidden transition-opacity hover:opacity-90"
           >
             <span className="relative z-10 flex items-center gap-2">

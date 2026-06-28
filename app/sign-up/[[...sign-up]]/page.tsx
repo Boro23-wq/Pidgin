@@ -6,6 +6,7 @@ import { Mail, Lock, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
 
@@ -26,6 +27,8 @@ function isExistingAccountError(msg: string) {
 export default function SignUpPage() {
   const { signUp, fetchStatus } = useSignUp();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
+  const searchParams = useSearchParams();
+  const ticket = searchParams.get("__clerk_ticket");
 
   const [step, setStep] = useState<Step>("register");
   const [email, setEmail] = useState("");
@@ -43,6 +46,14 @@ export default function SignUpPage() {
       window.location.href = "/dashboard";
     }
   }, [userLoaded, isSignedIn]);
+
+  // Activate Clerk invitation ticket — bypasses restricted mode
+  useEffect(() => {
+    if (!signUp || !ticket || signUp.status !== null) return;
+    signUp
+      .create({ strategy: "ticket", ticket })
+      .catch(() => setError("Invitation link is invalid or expired."));
+  }, [signUp, ticket]);
 
   async function handleGoogleOAuth() {
     if (!signUp) {
@@ -162,6 +173,18 @@ export default function SignUpPage() {
               transition={{ duration: 0.45, ease: "easeOut" }}
               className="space-y-7"
             >
+              {/* Invitation banner */}
+              {ticket && (
+                <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/25 bg-primary/8">
+                  <motion.span
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0"
+                  />
+                  <p className="text-xs text-primary font-medium">You&apos;ve been invited to Pidgin</p>
+                </div>
+              )}
+
               {/* Step tracker */}
               <div className="space-y-2">
                 <div className="flex gap-1.5">
