@@ -400,8 +400,7 @@ function SyncOverlay({
         onClick={stats || error ? onDismiss : undefined}
       />
       <motion.div
-        className="relative z-10 w-full max-w-[300px] rounded-2xl border border-white/[0.07] px-6 py-6"
-        style={{ background: "hsl(240 10% 7%)" }}
+        className="relative z-10 w-full max-w-[300px] rounded-2xl border border-border bg-card px-6 py-6"
         initial={{ scale: 0.96, opacity: 0, y: 8 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.96, opacity: 0, y: 4 }}
@@ -413,7 +412,7 @@ function SyncOverlay({
               <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
               <p className="text-sm font-medium">Something went wrong</p>
             </div>
-            <p className="text-xs text-white/50 leading-relaxed pl-[18px]">{error}</p>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-[18px]">{error}</p>
             <button onClick={onDismiss} className="pl-[18px] text-xs text-primary font-medium">Dismiss</button>
           </div>
         ) : stats ? (
@@ -425,7 +424,7 @@ function SyncOverlay({
                 transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.05 }}
                 className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"
               />
-              <p className="text-sm font-medium text-white">
+              <p className="text-sm font-medium">
                 {stats.nothingNew
                   ? "You're all caught up"
                   : stats.processedCount > 0
@@ -434,9 +433,9 @@ function SyncOverlay({
               </p>
             </div>
             {stats.nothingNew ? (
-              <p className="text-xs text-white/50 pl-[18px]">No newsletters arrived yet today</p>
+              <p className="text-xs text-muted-foreground pl-[18px]">No newsletters arrived yet today</p>
             ) : stats.skippedCount > 0 ? (
-              <p className="text-xs text-white/50 pl-[18px]">{stats.skippedCount} already in your digest</p>
+              <p className="text-xs text-muted-foreground pl-[18px]">{stats.skippedCount} already in your digest</p>
             ) : null}
             <div className="pl-[18px]">
               <button onClick={onDismiss} className="text-xs text-primary font-medium">
@@ -448,11 +447,11 @@ function SyncOverlay({
           /* ── Scan phase ── */
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-white">Scanning your inbox</p>
+              <p className="text-sm font-medium">Scanning your inbox</p>
               {onCancel && (
                 <button
                   onClick={onCancel}
-                  className="text-xs text-white/40 hover:text-white/70 transition-colors flex-shrink-0"
+                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors flex-shrink-0"
                 >
                   Cancel
                 </button>
@@ -487,7 +486,7 @@ function SyncOverlay({
               <AnimatePresence mode="wait">
                 <motion.p
                   key={sentenceIdx}
-                  className="text-xs text-white/50 leading-relaxed"
+                  className="text-xs text-muted-foreground/60 leading-relaxed"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
@@ -1324,7 +1323,7 @@ function NewsletterCard({
           : `rounded-xl border ${isExpanded ? "border-border/80 ring-1 ring-primary/20" : "border-border hover:border-primary/20 min-h-24"}`
       } ${!isRead && !isExpanded && !noOuterBorder ? "border-l-[3px] border-l-primary/60" : ""}`}
     >
-      <div className="px-4 sm:px-5 pt-3.5 flex items-center justify-between gap-3">
+      <div className="px-4 sm:px-5 pt-3.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <span
             className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${catStyle}`}
@@ -1356,7 +1355,7 @@ function NewsletterCard({
           <button
             onClick={() => onBlock(summary.id)}
             title="Block this sender"
-            className="hidden sm:block p-1 rounded transition-colors text-muted-foreground/25 hover:text-red-400"
+            className="p-1 rounded transition-colors text-muted-foreground/25 hover:text-red-400"
           >
             <Ban className="w-3.5 h-3.5" />
           </button>
@@ -1381,7 +1380,7 @@ function NewsletterCard({
           <button
             onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "linkedin"); }}
             title={posts.linkedin || summary.linkedin_post ? "LinkedIn post ready" : "Generate LinkedIn post"}
-            className={`hidden sm:block p-1 rounded transition-colors ${posts.linkedin || summary.linkedin_post ? "text-[#0A66C2]" : "text-muted-foreground/25 hover:text-[#0A66C2]/70"}`}
+            className={`p-1 rounded transition-colors ${posts.linkedin || summary.linkedin_post ? "text-[#0A66C2]" : "text-muted-foreground/25 hover:text-[#0A66C2]/70"}`}
           >
             <Linkedin className="w-3.5 h-3.5" />
           </button>
@@ -1390,7 +1389,7 @@ function NewsletterCard({
           <button
             onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "twitter"); }}
             title={posts.twitter || summary.twitter_post ? "X post ready" : "Generate X post"}
-            className={`hidden sm:block p-1 rounded transition-colors ${posts.twitter || summary.twitter_post ? "text-foreground/70" : "text-muted-foreground/25 hover:text-foreground/50"}`}
+            className={`p-1 rounded transition-colors ${posts.twitter || summary.twitter_post ? "text-foreground/70" : "text-muted-foreground/25 hover:text-foreground/50"}`}
           >
             <XIcon className="w-3.5 h-3.5" />
           </button>
@@ -1399,7 +1398,7 @@ function NewsletterCard({
           <button
             onClick={(e) => { e.stopPropagation(); onShare(summary.id); }}
             title="Copy share link"
-            className={`hidden sm:block p-1 rounded transition-colors ${copying === `share-${summary.id}` ? "text-primary" : "text-muted-foreground/25 hover:text-primary/70"}`}
+            className={`p-1 rounded transition-colors ${copying === `share-${summary.id}` ? "text-primary" : "text-muted-foreground/25 hover:text-primary/70"}`}
           >
             {copying === `share-${summary.id}` ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
           </button>
