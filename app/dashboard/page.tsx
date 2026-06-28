@@ -467,7 +467,6 @@ function SyncOverlay({
                 >
                   <motion.div
                     className="h-full w-full bg-foreground/20"
-                    style={{
                     animate={{ x: ["-100%", "200%"] }}
                     transition={{
                       duration: 1.8,
