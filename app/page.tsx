@@ -893,7 +893,7 @@ function LandingPage() {
                 className="text-xs gap-1.5"
                 onClick={() => router.push("/sign-up")}
               >
-                Join beta
+                Join alpha
                 <ChevronDown className="w-3 h-3 rotate-[-90deg]" />
               </Button>
             </div>
@@ -1121,7 +1121,7 @@ function LandingPage() {
                   Alpha · Limited seats
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1 mt-2">Alpha / Beta</p>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1 mt-2">Alpha</p>
               <div className="flex items-baseline gap-1 mb-4">
                 <span className="text-4xl font-bold">Free</span>
                 <span className="text-sm text-muted-foreground/50">while seats last</span>
@@ -1146,7 +1146,7 @@ function LandingPage() {
                 onClick={() => router.push("/sign-up")}
                 className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
-                Join the beta →
+                Join the alpha →
               </motion.button>
               <p className="text-[10px] text-muted-foreground/35 text-center mt-3">
                 Free during alpha. 60 days notice before any paid tier goes live.
@@ -1171,7 +1171,7 @@ function LandingPage() {
                   "Unlimited newsletter sources",
                   "Priority Gmail sync",
                   "Custom digest time",
-                  "Everything in beta",
+                  "Everything in alpha",
                   "Early access to new features",
                 ].map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm text-foreground/50">
@@ -1187,7 +1187,7 @@ function LandingPage() {
                 Coming soon
               </button>
               <p className="text-[10px] text-muted-foreground/30 text-center mt-3">
-                Launching after beta. Join now to lock in early pricing.
+                Launching after alpha. Join now to lock in early pricing.
               </p>
             </motion.div>
           </div>
@@ -1228,7 +1228,7 @@ function LandingPage() {
             className="relative inline-flex items-center gap-2 px-8 h-11 rounded-lg bg-primary text-white text-sm font-medium overflow-hidden transition-opacity hover:opacity-90"
           >
             <span className="relative z-10 flex items-center gap-2">
-              Join the beta
+              Join the alpha
               <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
             </span>
             <motion.span

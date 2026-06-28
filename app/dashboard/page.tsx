@@ -527,7 +527,7 @@ function SyncOverlay({
                   <motion.span
                     key={i}
                     className={`w-2 h-2 rounded-full block ${
-                      i < progress.current ? "bg-primary" : "bg-white/10"
+                      i < progress.current ? "bg-primary" : "bg-foreground/[0.08]"
                     }`}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -540,7 +540,7 @@ function SyncOverlay({
             {/* progress bar */}
             {progress && (
               <div className="space-y-2">
-                <div className="h-[3px] w-full bg-white/[0.06] rounded-full overflow-hidden">
+                <div className="h-[3px] w-full bg-foreground/[0.08] rounded-full overflow-hidden">
                   <motion.div
                     className="h-full rounded-full relative overflow-hidden"
                     style={{ background: "hsl(var(--primary))" }}
