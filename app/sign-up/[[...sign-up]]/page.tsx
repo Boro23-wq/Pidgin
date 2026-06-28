@@ -49,10 +49,18 @@ export default function SignUpPage() {
 
   // Activate Clerk invitation ticket — bypasses restricted mode
   useEffect(() => {
-    if (!signUp || !ticket || signUp.status !== null) return;
+    if (!signUp || !ticket) return;
     signUp
       .create({ strategy: "ticket", ticket })
-      .catch(() => setError("Invitation link is invalid or expired."));
+      .then((result) => {
+        if (result.status === "complete") {
+          window.location.href = "/dashboard";
+        }
+      })
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg || "Invitation link is invalid or expired.");
+      });
   }, [signUp, ticket]);
 
   async function handleGoogleOAuth() {
