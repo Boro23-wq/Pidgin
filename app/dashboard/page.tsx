@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { usePostHog } from "posthog-js/react";
 import {
   Search,
   RefreshCw,
@@ -26,6 +27,8 @@ import {
   SlidersHorizontal,
   LayoutGrid,
   Inbox,
+  ThumbsDown,
+  Share2,
 } from "lucide-react";
 
 function XIcon({ className }: { className?: string }) {
@@ -41,6 +44,7 @@ import { useUser } from "@clerk/nextjs";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CustomUserButton } from "@/components/custom-user-button";
+import { OnboardingFlow } from "@/components/onboarding-flow";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -436,7 +440,7 @@ function SyncOverlay({
             ) : null}
             <div className="pl-[18px]">
               <button onClick={onDismiss} className="text-xs text-primary font-medium">
-                {stats.nothingNew ? "Dismiss" : "View stories →"}
+                {stats.nothingNew ? "Dismiss" : "View stories"}
               </button>
             </div>
           </motion.div>
@@ -1172,6 +1176,7 @@ function SourcePanel({
   isExpanded,
   isBookmarked,
   isRead,
+  isFlagged,
   generatedPosts,
   generating,
   copying,
@@ -1181,6 +1186,8 @@ function SourcePanel({
   onGenerate,
   onCopy,
   onBlock,
+  onShare,
+  onFlag,
 }: {
   sourceEmail: string;
   summaries: Summary[];
@@ -1188,6 +1195,7 @@ function SourcePanel({
   isExpanded: (id: string) => boolean;
   isBookmarked: (id: string) => boolean;
   isRead: (id: string) => boolean;
+  isFlagged: (id: string) => boolean;
   generatedPosts: Record<string, { linkedin?: string; twitter?: string }>;
   generating: Record<string, boolean>;
   copying: string | null;
@@ -1197,6 +1205,8 @@ function SourcePanel({
   onGenerate: (id: string, p: Platform) => void;
   onCopy: (text: string, key: string) => void;
   onBlock: (id: string) => void;
+  onShare: (id: string) => void;
+  onFlag: (id: string) => void;
 }) {
   const articles = summaries.filter((s) => s.source_email === sourceEmail);
   const senderName = extractSenderName(sourceEmail);
@@ -1238,6 +1248,7 @@ function SourcePanel({
               isExpanded={isExpanded(s.id)}
               isBookmarked={isBookmarked(s.id)}
               isRead={isRead(s.id)}
+              isFlagged={isFlagged(s.id)}
               generatedPosts={generatedPosts}
               generating={generating}
               copying={copying}
@@ -1247,6 +1258,8 @@ function SourcePanel({
               onGenerate={onGenerate}
               onCopy={onCopy}
               onBlock={onBlock}
+              onShare={onShare}
+              onFlag={onFlag}
             />
           ))}
         </div>
@@ -1260,6 +1273,7 @@ function NewsletterCard({
   isExpanded,
   isBookmarked,
   isRead,
+  isFlagged,
   generatedPosts,
   generating,
   copying,
@@ -1269,6 +1283,8 @@ function NewsletterCard({
   onGenerate,
   onCopy,
   onBlock,
+  onShare,
+  onFlag,
   noOuterBorder = false,
   onOpenSource,
 }: {
@@ -1276,6 +1292,7 @@ function NewsletterCard({
   isExpanded: boolean;
   isBookmarked: boolean;
   isRead: boolean;
+  isFlagged: boolean;
   generatedPosts: Record<string, { linkedin?: string; twitter?: string }>;
   generating: Record<string, boolean>;
   copying: string | null;
@@ -1285,6 +1302,8 @@ function NewsletterCard({
   onGenerate: (id: string, p: Platform) => void;
   onCopy: (text: string, key: string) => void;
   onBlock: (id: string) => void;
+  onShare: (id: string) => void;
+  onFlag: (id: string) => void;
   noOuterBorder?: boolean;
   onOpenSource?: (sourceEmail: string) => void;
 }) {
@@ -1357,6 +1376,33 @@ function NewsletterCard({
               <Bookmark className="w-3.5 h-3.5" />
             )}
           </button>
+
+          {/* Quick: generate LinkedIn post */}
+          <button
+            onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "linkedin"); }}
+            title={posts.linkedin || summary.linkedin_post ? "LinkedIn post ready" : "Generate LinkedIn post"}
+            className={`p-1 rounded transition-colors ${posts.linkedin || summary.linkedin_post ? "text-[#0A66C2]" : "text-muted-foreground/25 hover:text-[#0A66C2]/70"}`}
+          >
+            <Linkedin className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Quick: generate X post */}
+          <button
+            onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "twitter"); }}
+            title={posts.twitter || summary.twitter_post ? "X post ready" : "Generate X post"}
+            className={`p-1 rounded transition-colors ${posts.twitter || summary.twitter_post ? "text-foreground/70" : "text-muted-foreground/25 hover:text-foreground/50"}`}
+          >
+            <XIcon className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Share */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onShare(summary.id); }}
+            title="Copy share link"
+            className={`p-1 rounded transition-colors ${copying === `share-${summary.id}` ? "text-primary" : "text-muted-foreground/25 hover:text-primary/70"}`}
+          >
+            {copying === `share-${summary.id}` ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </div>
 
@@ -1408,17 +1454,27 @@ function NewsletterCard({
               <p className="text-[10px] text-muted-foreground/50">
                 {formatDate(summary.created_at)}
               </p>
-              {sourceHref && (
-                <a
-                  href={sourceHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
+              <div className="flex items-center gap-3">
+                {sourceHref && (
+                  <a
+                    href={sourceHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
+                  >
+                    Read article
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                <button
+                  onClick={() => onFlag(summary.id)}
+                  title={isFlagged ? "Flagged as inaccurate" : "Flag as inaccurate"}
+                  className={`inline-flex items-center gap-1 text-xs transition-colors ${isFlagged ? "text-red-400" : "text-muted-foreground/30 hover:text-red-400/70"}`}
                 >
-                  Read article
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
+                  <ThumbsDown className="w-3 h-3" />
+                  {isFlagged ? "Flagged" : "Inaccurate?"}
+                </button>
+              </div>
             </div>
 
             {onOpenSource && (
@@ -1485,6 +1541,7 @@ function NewsletterCard({
 // ---------------------------------------------------------------------------
 export default function Dashboard() {
   const { isLoaded, user } = useUser();
+  const ph = usePostHog();
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [summaries, setSummaries] = useState<Summary[]>([]);
@@ -1506,6 +1563,7 @@ export default function Dashboard() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
   const [read, setRead] = useState<Set<string>>(new Set());
+  const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [generatedPosts, setGeneratedPosts] = useState<
     Record<string, { linkedin?: string; twitter?: string }>
   >({});
@@ -1523,6 +1581,7 @@ export default function Dashboard() {
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [digestState, setDigestState] = useState<"idle" | "loading" | "sent" | "empty" | "error">("idle");
   const [page, setPage] = useState(1);
   const PER_PAGE = 20;
 
@@ -1554,6 +1613,7 @@ export default function Dashboard() {
       new Set(summaries.filter((s) => s.is_bookmarked).map((s) => s.id)),
     );
     setRead(new Set(summaries.filter((s) => s.is_read).map((s) => s.id)));
+    setFlagged(new Set(summaries.filter((s) => (s as {is_flagged?: boolean}).is_flagged).map((s) => s.id)));
   }, [summaries]);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
@@ -1580,6 +1640,28 @@ export default function Dashboard() {
   }, [fetchSummaries]);
 
   // ── Scan phase (opens selection modal) ────────────────────────────────────
+  const handleSendDigest = async () => {
+    setDigestState("loading");
+    try {
+      const res = await fetch("/api/digest", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("[digest]", data.error);
+        setDigestState("error");
+        setTimeout(() => setDigestState("idle"), 3500);
+        return;
+      }
+      const next = data.sent ? "sent" : "empty";
+      if (data.sent) ph?.capture("digest_sent", { article_count: data.count });
+      setDigestState(next);
+      setTimeout(() => setDigestState("idle"), 3500);
+    } catch (e) {
+      console.error("[digest]", e);
+      setDigestState("error");
+      setTimeout(() => setDigestState("idle"), 3500);
+    }
+  };
+
   const handleScan = async () => {
     const controller = new AbortController();
     scanAbortRef.current = controller;
@@ -1700,6 +1782,10 @@ export default function Dashboard() {
                 skippedCount: data.skippedCount ?? 0,
                 deletedCount: data.deletedCount ?? 0,
               });
+              ph?.capture("newsletter_synced", {
+                count: data.processedCount ?? 0,
+                skipped: data.skippedCount ?? 0,
+              });
               setSyncProgress(null);
               await fetchSummaries();
             } else if (data.type === "error") {
@@ -1768,7 +1854,12 @@ export default function Dashboard() {
     (id: string) => {
       setExpandedIds((prev) => {
         const next = new Set(prev);
-        next.has(id) ? next.delete(id) : next.add(id);
+        const opening = !next.has(id);
+        opening ? next.add(id) : next.delete(id);
+        if (opening) {
+          const s = summaries.find((x) => x.id === id);
+          ph?.capture("article_expanded", { category: s?.category, source: s?.source_email });
+        }
         return next;
       });
       if (!read.has(id)) {
@@ -1780,7 +1871,7 @@ export default function Dashboard() {
         }).catch(() => {});
       }
     },
-    [read],
+    [read, summaries, ph],
   );
 
   const handleToggleRead = useCallback((id: string) => {
@@ -1802,6 +1893,10 @@ export default function Dashboard() {
       const next = new Set(prev);
       const newVal = !next.has(id);
       newVal ? next.add(id) : next.delete(id);
+      if (newVal) {
+        const s = summaries.find((x) => x.id === id);
+        ph?.capture("article_bookmarked", { source: s?.source_email, category: s?.category });
+      }
       fetch("/api/update-summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1809,7 +1904,7 @@ export default function Dashboard() {
       }).catch(() => {});
       return next;
     });
-  }, []);
+  }, [summaries, ph]);
 
   const handleGenerate = async (summaryId: string, platform: Platform) => {
     const key = `${summaryId}-${platform}`;
@@ -1826,6 +1921,8 @@ export default function Dashboard() {
           ...prev,
           [summaryId]: { ...prev[summaryId], [platform]: data.post },
         }));
+        const s = summaries.find((x) => x.id === summaryId);
+        ph?.capture("social_post_generated", { platform, source: s?.source_email });
       }
     } catch {
       /* ignore */
@@ -1853,6 +1950,29 @@ export default function Dashboard() {
       if (original) setSummaries((prev) => [original, ...prev]);
     }
   };
+
+  const handleShare = useCallback((id: string) => {
+    const url = `${window.location.origin}/share/${id}`;
+    navigator.clipboard.writeText(url).catch(() => {});
+    setCopying(`share-${id}`);
+    setTimeout(() => setCopying(null), 2000);
+    ph?.capture("article_shared");
+  }, [ph]);
+
+  const handleFlag = useCallback((id: string) => {
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      const flagging = !next.has(id);
+      flagging ? next.add(id) : next.delete(id);
+      if (flagging) ph?.capture("article_flagged");
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summaryId: id, reason: "inaccurate" }),
+      }).catch(() => {});
+      return next;
+    });
+  }, [ph]);
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const uniqueSources = useMemo(
@@ -2036,6 +2156,7 @@ export default function Dashboard() {
             isExpanded={(id) => expandedIds.has(id)}
             isBookmarked={(id) => bookmarked.has(id)}
             isRead={(id) => read.has(id)}
+            isFlagged={(id: string) => flagged.has(id)}
             generatedPosts={generatedPosts}
             generating={generating}
             copying={copying}
@@ -2045,6 +2166,8 @@ export default function Dashboard() {
             onGenerate={handleGenerate}
             onCopy={handleCopy}
             onBlock={handleBlock}
+            onShare={handleShare}
+            onFlag={handleFlag}
           />
         )}
       </AnimatePresence>
@@ -2177,16 +2300,46 @@ export default function Dashboard() {
               </p>
             </div>
             {gmailConnected === true && (
-              <SyncButton
-                onScan={handleScan}
-                scanning={scanning}
-                disabled={loading || syncing}
-              />
+              <div className="flex items-center gap-2">
+                {summaries.length > 0 && (
+                  <button
+                    onClick={handleSendDigest}
+                    disabled={digestState === "loading"}
+                    title="Email me today's digest"
+                    className={`h-9 px-3.5 rounded-full border text-sm font-medium flex items-center gap-1.5 transition-all ${
+                      digestState === "sent"
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                        : digestState === "error"
+                          ? "border-red-500/40 bg-red-500/10 text-red-400"
+                          : digestState === "empty"
+                            ? "border-border bg-secondary/40 text-muted-foreground"
+                            : "border-border bg-secondary/40 text-muted-foreground hover:text-foreground hover:border-border/80"
+                    }`}
+                  >
+                    {digestState === "loading" ? (
+                      <><span className="w-3.5 h-3.5 rounded-full border border-current border-t-transparent animate-spin" /> Sending…</>
+                    ) : digestState === "sent" ? (
+                      <><CheckCircle2 className="w-3.5 h-3.5" /> Digest sent</>
+                    ) : digestState === "error" ? (
+                      <>Failed — check console</>
+                    ) : digestState === "empty" ? (
+                      <>No articles today</>
+                    ) : (
+                      <><Mail className="w-3.5 h-3.5" /> Send digest</>
+                    )}
+                  </button>
+                )}
+                <SyncButton
+                  onScan={handleScan}
+                  scanning={scanning}
+                  disabled={loading || syncing}
+                />
+              </div>
             )}
           </motion.div>
 
           {/* ── Metrics ────────────────────────────────────────────────────── */}
-          <motion.div
+          {summaries.length > 0 && <motion.div
             className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-stretch"
             initial="hidden"
             animate="visible"
@@ -2210,10 +2363,10 @@ export default function Dashboard() {
                 {tile}
               </motion.div>
             ))}
-          </motion.div>
+          </motion.div>}
 
           {/* ── Filters ────────────────────────────────────────────────────── */}
-          <div className="space-y-1.5">
+          {summaries.length > 0 && <div className="space-y-1.5">
             {/* Primary row: chips + icon controls */}
             <div className="flex items-center gap-2">
               <div className="flex gap-1.5 overflow-x-auto flex-1 scrollbar-hide -mx-0.5 px-0.5 pb-0.5">
@@ -2362,7 +2515,7 @@ export default function Dashboard() {
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </div>}
 
           {/* ── Content ────────────────────────────────────────────────────── */}
           {loading ? (
@@ -2374,24 +2527,12 @@ export default function Dashboard() {
                 />
               ))}
             </div>
-          ) : summaries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="w-14 h-14 rounded-xl bg-secondary flex items-center justify-center mb-4">
-                <Mail className="w-7 h-7 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium">No newsletters yet</p>
-              <p className="text-xs text-muted-foreground mt-1.5 max-w-xs leading-relaxed">
-                Click <span className="font-medium text-foreground">Sync</span>{" "}
-                to scan your Gmail inbox and pick which newsletters to import.
-              </p>
-              <div className="mt-5">
-                <SyncButton
-                  onScan={handleScan}
-                  scanning={scanning}
-                  disabled={syncing}
-                />
-              </div>
-            </div>
+          ) : summaries.length === 0 && gmailConnected !== null ? (
+            <OnboardingFlow
+              gmailConnected={gmailConnected}
+              onStartScan={handleScan}
+              scanning={scanning}
+            />
           ) : filteredSummaries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-4">

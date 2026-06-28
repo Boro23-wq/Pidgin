@@ -446,7 +446,7 @@ export default function SignUpPage() {
                         }}
                         className="w-full text-xs text-muted-foreground/50 hover:text-muted-foreground text-center transition-colors py-1"
                       >
-                        ← Use a different email
+                        Use a different email
                       </button>
                     </form>
                   </motion.div>
