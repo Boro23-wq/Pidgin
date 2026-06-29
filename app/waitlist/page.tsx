@@ -105,6 +105,9 @@ export default function WaitlistPage() {
       if (data.existing) {
         setAlreadyOnList(true);
       }
+      if (data.clerkError) {
+        console.error("[waitlist] Clerk error from server:", data.clerkError);
+      }
       setSubmitted(true);
     } catch {
       setError("Something went wrong. Please try again.");

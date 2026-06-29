@@ -32,12 +32,14 @@ export async function POST(req: Request) {
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
   // Add to Clerk waitlist queue
+  let clerkError: string | null = null;
   try {
     const client = await clerkClient();
     await client.waitlistEntries.create({ emailAddress: normalizedEmail, notify: false });
   } catch (e: unknown) {
-    console.error("[waitlist] Clerk error:", e instanceof Error ? e.message : String(e));
+    clerkError = e instanceof Error ? e.message : String(e);
+    console.error("[waitlist] Clerk error:", clerkError);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, clerkError });
 }
