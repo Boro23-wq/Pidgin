@@ -111,11 +111,21 @@ export default function SignUpPage() {
       setError("Could not start Google sign-up. Please refresh and try again.");
     }, 10000);
     try {
-      const { error: err } = await signUp.create({
-        strategy: "oauth_google",
+      const { error: ticketErr } = await signUp.create({
+        strategy: "ticket",
         ticket,
+      });
+      if (ticketErr) {
+        window.clearTimeout(redirectTimeout);
+        setError(getAuthErrorMessage(ticketErr, "Invitation link is invalid or expired."));
+        setOauthLoading(false);
+        return;
+      }
+
+      const { error: err } = await signUp.sso({
+        strategy: "oauth_google",
         redirectUrl: `${origin}/sign-up/sso-callback`,
-        actionCompleteRedirectUrl: `${origin}/dashboard`,
+        redirectCallbackUrl: `${origin}/dashboard`,
       });
       window.clearTimeout(redirectTimeout);
       if (err) {
