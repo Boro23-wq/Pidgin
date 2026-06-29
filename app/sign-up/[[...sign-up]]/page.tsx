@@ -9,6 +9,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
+import {
+  INVITE_ONLY_MESSAGE,
+  getAuthErrorMessage,
+  getInviteOnlyWaitlistUrl,
+  isInviteOnlyAuthError,
+} from "@/lib/invite-only";
 
 type Step = "register" | "verify";
 
@@ -26,7 +32,8 @@ export default function SignUpPage() {
   const { signUp, fetchStatus } = useSignUp();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
   const searchParams = useSearchParams();
-  const ticket = searchParams.get("__clerk_ticket");
+  const ticket =
+    searchParams.get("__clerk_ticket") ?? searchParams.get("__clerk_invitation_token");
 
   const [step, setStep] = useState<Step>("register");
   const [email, setEmail] = useState("");
@@ -39,6 +46,13 @@ export default function SignUpPage() {
 
   const isLoading = fetchStatus === "fetching";
 
+  function sendToWaitlist() {
+    setError(INVITE_ONLY_MESSAGE);
+    window.setTimeout(() => {
+      window.location.href = getInviteOnlyWaitlistUrl("sign-up");
+    }, 900);
+  }
+
   useEffect(() => {
     if (userLoaded && isSignedIn) {
       window.location.href = "/dashboard";
@@ -50,18 +64,36 @@ export default function SignUpPage() {
       setError("Sign-up not ready — please refresh the page.");
       return;
     }
+    if (!ticket) {
+      sendToWaitlist();
+      return;
+    }
     setOauthLoading(true);
     setError("");
-    // Do NOT activate ticket before OAuth — Clerk passes __clerk_ticket from
-    // the URL automatically through the OAuth state parameter.
     const origin = window.location.origin;
-    const { error: err } = await signUp.sso({
-      strategy: "oauth_google",
-      redirectUrl: `${origin}/sign-up/sso-callback`,
-      redirectCallbackUrl: `${origin}/dashboard`,
-    });
-    if (err) {
-      setError(err.message ?? "Could not start Google sign-up.");
+    try {
+      const { error: ticketErr } = await signUp.create({ strategy: "ticket", ticket });
+      if (ticketErr) {
+        setError(getAuthErrorMessage(ticketErr, "Invitation link is invalid or expired."));
+        setOauthLoading(false);
+        return;
+      }
+
+      const { error: err } = await signUp.sso({
+        strategy: "oauth_google",
+        redirectUrl: `${origin}/dashboard`,
+        redirectCallbackUrl: `${origin}/sign-up/sso-callback`,
+      });
+      if (err) {
+        const message = getAuthErrorMessage(err, "Could not start Google sign-up.");
+        if (isInviteOnlyAuthError(message)) sendToWaitlist();
+        else setError(message);
+        setOauthLoading(false);
+      }
+    } catch (err) {
+      const message = getAuthErrorMessage(err, "Could not start Google sign-up.");
+      if (isInviteOnlyAuthError(message)) sendToWaitlist();
+      else setError(message);
       setOauthLoading(false);
     }
   }
@@ -71,22 +103,28 @@ export default function SignUpPage() {
     if (!signUp) return;
     setError("");
     setAccountExists(false);
+    if (!ticket) {
+      sendToWaitlist();
+      return;
+    }
     try {
       // Activate invitation ticket before email/password sign-up so Clerk
       // allows it through Waitlist mode restriction.
-      if (ticket) {
-        const { error: ticketErr } = await signUp.create({ strategy: "ticket", ticket });
-        if (ticketErr) {
-          setError(ticketErr.message ?? "Invitation link is invalid or expired.");
-          return;
-        }
+      const { error: ticketErr } = await signUp.create({ strategy: "ticket", ticket });
+      if (ticketErr) {
+        setError(getAuthErrorMessage(ticketErr, "Invitation link is invalid or expired."));
+        return;
       }
       const { error: err } = await signUp.password({
         emailAddress: email,
         password,
       });
       if (err) {
-        const msg = err.message ?? "Something went wrong. Try again.";
+        const msg = getAuthErrorMessage(err, "Something went wrong. Try again.");
+        if (isInviteOnlyAuthError(msg)) {
+          sendToWaitlist();
+          return;
+        }
         if (isExistingAccountError(msg)) {
           setAccountExists(true);
           setError("An account with this email already exists.");
@@ -109,7 +147,11 @@ export default function SignUpPage() {
       }
       setStep("verify");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Something went wrong. Try again.";
+      const msg = getAuthErrorMessage(e, "Something went wrong. Try again.");
+      if (isInviteOnlyAuthError(msg)) {
+        sendToWaitlist();
+        return;
+      }
       if (isExistingAccountError(msg)) {
         setAccountExists(true);
         setError("An account with this email already exists.");

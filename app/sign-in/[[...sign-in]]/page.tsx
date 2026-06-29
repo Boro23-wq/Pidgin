@@ -8,6 +8,12 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
+import {
+  INVITE_ONLY_MESSAGE,
+  getAuthErrorMessage,
+  getInviteOnlyWaitlistUrl,
+  isInviteOnlyAuthError,
+} from "@/lib/invite-only";
 
 export default function SignInPage() {
   const { signIn, fetchStatus } = useSignIn();
@@ -21,6 +27,13 @@ export default function SignInPage() {
 
   const isLoading = fetchStatus === "fetching";
 
+  function sendToWaitlist() {
+    setError(INVITE_ONLY_MESSAGE);
+    window.setTimeout(() => {
+      window.location.href = getInviteOnlyWaitlistUrl("sign-in");
+    }, 900);
+  }
+
   useEffect(() => {
     if (userLoaded && isSignedIn) {
       window.location.href = "/dashboard";
@@ -31,17 +44,25 @@ export default function SignInPage() {
     e.preventDefault();
     if (!signIn) return;
     setError("");
-    const { error: err } = await signIn.password({
-      identifier: email,
-      password,
-    });
-    if (err) {
-      setError(err.message ?? "Invalid email or password.");
-      return;
-    }
-    if (signIn.status === "complete") {
-      await signIn.finalize();
-      window.location.href = "/dashboard";
+    try {
+      const { error: err } = await signIn.password({
+        identifier: email,
+        password,
+      });
+      if (err) {
+        const message = getAuthErrorMessage(err, "Invalid email or password.");
+        if (isInviteOnlyAuthError(message)) sendToWaitlist();
+        else setError(message);
+        return;
+      }
+      if (signIn.status === "complete") {
+        await signIn.finalize();
+        window.location.href = "/dashboard";
+      }
+    } catch (err) {
+      const message = getAuthErrorMessage(err, "Invalid email or password.");
+      if (isInviteOnlyAuthError(message)) sendToWaitlist();
+      else setError(message);
     }
   }
 
@@ -53,13 +74,22 @@ export default function SignInPage() {
     setOauthLoading(true);
     setError("");
     const origin = window.location.origin;
-    const { error: err } = await signIn.sso({
-      strategy: "oauth_google",
-      redirectUrl: `${origin}/sign-in/sso-callback`,
-      redirectCallbackUrl: `${origin}/dashboard`,
-    });
-    if (err) {
-      setError(err.message ?? "Could not start Google sign-in.");
+    try {
+      const { error: err } = await signIn.sso({
+        strategy: "oauth_google",
+        redirectUrl: `${origin}/dashboard`,
+        redirectCallbackUrl: `${origin}/sign-in/sso-callback`,
+      });
+      if (err) {
+        const message = getAuthErrorMessage(err, "Could not start Google sign-in.");
+        if (isInviteOnlyAuthError(message)) sendToWaitlist();
+        else setError(message);
+        setOauthLoading(false);
+      }
+    } catch (err) {
+      const message = getAuthErrorMessage(err, "Could not start Google sign-in.");
+      if (isInviteOnlyAuthError(message)) sendToWaitlist();
+      else setError(message);
       setOauthLoading(false);
     }
   }
@@ -81,8 +111,8 @@ export default function SignInPage() {
             <img src="/pidgin-main.png" alt="Pidgin" className="w-7 h-7" />
             <span className="font-semibold text-sm">Pidgin</span>
           </Link>
-          <Link href="/sign-up" className="text-xs text-primary  font-medium">
-            Create account
+          <Link href="/waitlist" className="text-xs text-primary  font-medium">
+            Request access
           </Link>
         </div>
 
@@ -90,8 +120,8 @@ export default function SignInPage() {
         <div className="hidden lg:flex justify-end px-10 pt-8">
           <p className="text-xs text-muted-foreground">
             No account?{" "}
-            <Link href="/sign-up" className="text-primary  font-medium">
-              Sign up free
+            <Link href="/waitlist" className="text-primary  font-medium">
+              Request access
             </Link>
           </p>
         </div>

@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useWaitlist } from "@clerk/nextjs";
+import { INVITE_ONLY_MESSAGE } from "@/lib/invite-only";
 
 const ROLES = [
   "Solo founder",
@@ -65,7 +65,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 export default function WaitlistPage() {
   const router = useRouter();
-  const { waitlist } = useWaitlist();
+  const [showInviteOnlyMessage, setShowInviteOnlyMessage] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
   const [count, setCount] = useState("");
@@ -75,6 +75,11 @@ export default function WaitlistPage() {
   const [submitted, setSubmitted] = useState(false);
   const [alreadyOnList, setAlreadyOnList] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setShowInviteOnlyMessage(params.get("auth") === "invite-only");
+  }, []);
 
   const toggleUseCase = (val: string) => {
     setUseCases((prev) =>
@@ -109,13 +114,6 @@ export default function WaitlistPage() {
         setAlreadyOnList(true);
         setSubmitted(true);
         return;
-      }
-      // Add to Clerk waitlist as Pending (invitable from dashboard)
-      if (waitlist) {
-        const { error: clerkErr } = await waitlist.join({ emailAddress: email });
-        if (clerkErr) {
-          console.error("[waitlist] Clerk join error:", clerkErr);
-        }
       }
       setSubmitted(true);
     } catch {
@@ -220,6 +218,11 @@ export default function WaitlistPage() {
                   Early alpha spots are limited while we tune the Gmail filtering
                   and AI summaries.
                 </p>
+                {showInviteOnlyMessage && (
+                  <p className="mt-4 rounded-xl border border-primary/25 bg-primary/8 px-4 py-3 text-sm text-primary">
+                    {INVITE_ONLY_MESSAGE}
+                  </p>
+                )}
               </div>
 
               {/* Form */}
