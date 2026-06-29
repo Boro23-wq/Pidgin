@@ -16,12 +16,6 @@ import {
   isInviteOnlyAuthError,
 } from "@/lib/invite-only";
 
-type SignInAttempt = {
-  error?: unknown;
-  status?: string;
-  finalize?: () => Promise<void>;
-};
-
 export default function SignInPage() {
   const { signIn, fetchStatus } = useSignIn();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
@@ -53,24 +47,24 @@ export default function SignInPage() {
     if (!signIn) return;
     setError("");
     try {
-      const result = (await signIn.password({
+      const { error: passwordErr } = await signIn.password({
         identifier: email,
         password,
-      })) as SignInAttempt;
-      const err = result.error;
-      if (err) {
-        const message = getAuthErrorMessage(err, "Invalid email or password.");
+      });
+      if (passwordErr) {
+        const message = getAuthErrorMessage(passwordErr, "Invalid email or password.");
         if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
         else setError(message);
         return;
       }
-      const status = result.status ?? signIn.status;
-      if (status === "complete") {
-        await (result.finalize ? result.finalize() : signIn.finalize());
-        window.location.href = "/dashboard";
+
+      const { error: finalizeErr } = await signIn.finalize();
+      if (finalizeErr) {
+        setError(getAuthErrorMessage(finalizeErr, "Could not complete sign-in."));
         return;
       }
-      setError("Sign-in did not complete. Please refresh and try again.");
+
+      window.location.href = "/dashboard";
     } catch (err) {
       const message = getAuthErrorMessage(err, "Invalid email or password.");
       if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
