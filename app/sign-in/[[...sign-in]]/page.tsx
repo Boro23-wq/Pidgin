@@ -26,8 +26,10 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [pendingFinalize, setPendingFinalize] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
 
-  const isLoading = fetchStatus === "fetching";
+  const isLoading = fetchStatus === "fetching" || pendingFinalize || finalizing;
 
   function sendToWaitlist() {
     setError(INVITE_ONLY_MESSAGE);
@@ -41,6 +43,42 @@ export default function SignInPage() {
       window.location.href = "/dashboard";
     }
   }, [userLoaded, isSignedIn]);
+
+  useEffect(() => {
+    if (!pendingFinalize || !signIn || finalizing || fetchStatus === "fetching") return;
+
+    if (signIn.status === "complete") {
+      setFinalizing(true);
+      void signIn
+        .finalize()
+        .then(({ error: finalizeErr }) => {
+          if (finalizeErr) {
+            setError(getAuthErrorMessage(finalizeErr, "Could not complete sign-in."));
+            setPendingFinalize(false);
+            setFinalizing(false);
+            return;
+          }
+
+          window.location.href = "/dashboard";
+        })
+        .catch((err) => {
+          setError(getAuthErrorMessage(err, "Could not complete sign-in."));
+          setPendingFinalize(false);
+          setFinalizing(false);
+        });
+      return;
+    }
+
+    if (signIn.status === "needs_second_factor") {
+      setError("This account needs a second sign-in step. Try Google sign-in for now.");
+      setPendingFinalize(false);
+    }
+
+    if (signIn.status === "needs_new_password") {
+      setError("This account needs a password reset before signing in.");
+      setPendingFinalize(false);
+    }
+  }, [fetchStatus, finalizing, pendingFinalize, signIn, signIn?.status]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,13 +96,7 @@ export default function SignInPage() {
         return;
       }
 
-      const { error: finalizeErr } = await signIn.finalize();
-      if (finalizeErr) {
-        setError(getAuthErrorMessage(finalizeErr, "Could not complete sign-in."));
-        return;
-      }
-
-      window.location.href = "/dashboard";
+      setPendingFinalize(true);
     } catch (err) {
       const message = getAuthErrorMessage(err, "Invalid email or password.");
       if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
