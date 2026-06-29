@@ -9,30 +9,34 @@ export async function POST(req: Request) {
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  // Save extra fields to Supabase
-  const { error: dbError } = await supabase.from("waitlist").upsert(
-    {
-      email: normalizedEmail,
-      role,
-      newsletter_count: newsletterCount,
-      use_cases: useCases,
-      access_type: accessType,
-    },
-    { onConflict: "email" }
-  );
+  // Check if already on waitlist
+  const { data: existing } = await supabase
+    .from("waitlist")
+    .select("email")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.json({ existing: true });
+  }
+
+  // Save to Supabase
+  const { error: dbError } = await supabase.from("waitlist").insert({
+    email: normalizedEmail,
+    role,
+    newsletter_count: newsletterCount,
+    use_cases: useCases,
+    access_type: accessType,
+  });
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  // Add to Clerk waitlist queue (so you can approve → invite from Clerk dashboard)
+  // Add to Clerk waitlist queue
   try {
     const client = await clerkClient();
     await client.waitlistEntries.create({ emailAddress: normalizedEmail, notify: false });
   } catch (e: unknown) {
-    // Ignore "already on waitlist" errors — Supabase upsert already handled deduplication
-    const msg = e instanceof Error ? e.message : "";
-    if (!msg.includes("already") && !msg.includes("exist")) {
-      console.error("[waitlist] Clerk error:", msg);
-    }
+    console.error("[waitlist] Clerk error:", e instanceof Error ? e.message : String(e));
   }
 
   return NextResponse.json({ ok: true });

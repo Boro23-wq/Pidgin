@@ -71,6 +71,7 @@ export default function WaitlistPage() {
   const [accessType, setAccessType] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [alreadyOnList, setAlreadyOnList] = useState(false);
   const [error, setError] = useState("");
 
   const toggleUseCase = (val: string) => {
@@ -100,6 +101,10 @@ export default function WaitlistPage() {
         }),
       });
       if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      if (data.existing) {
+        setAlreadyOnList(true);
+      }
       setSubmitted(true);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -150,12 +155,12 @@ export default function WaitlistPage() {
                 <Check className="w-7 h-7 text-primary" />
               </motion.div>
               <h2 className="text-2xl font-bold tracking-tight mb-3">
-                You&apos;re on the list.
+                {alreadyOnList ? "You're already on the list." : "You're on the list."}
               </h2>
               <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
-                Pidgin is being built for founders and builders who want to stay
-                sharp without drowning in newsletter tabs. I&apos;ll reach out
-                when alpha invites open.
+                {alreadyOnList
+                  ? "We already have your email. I'll reach out when your alpha invite is ready."
+                  : "Pidgin is being built for founders and builders who want to stay sharp without drowning in newsletter tabs. I'll reach out when alpha invites open."}
               </p>
               <button
                 onClick={() => router.push("/")}
