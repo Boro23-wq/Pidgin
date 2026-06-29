@@ -10,8 +10,6 @@ import { useSearchParams } from "next/navigation";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
 type Step = "register" | "verify";
 
 function isExistingAccountError(msg: string) {
@@ -28,7 +26,7 @@ export default function SignUpPage() {
   const { signUp, fetchStatus } = useSignUp();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
   const searchParams = useSearchParams();
-  const ticket = searchParams.get("__clerk_ticket");
+  const isInvited = searchParams.get("invited") === "1";
 
   const [step, setStep] = useState<Step>("register");
   const [email, setEmail] = useState("");
@@ -167,7 +165,7 @@ export default function SignUpPage() {
               className="space-y-7"
             >
               {/* Invitation banner */}
-              {ticket && (
+              {isInvited && (
                 <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/25 bg-primary/8">
                   <motion.span
                     animate={{ opacity: [1, 0.4, 1] }}

@@ -1594,6 +1594,11 @@ export default function Dashboard() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Consume invite code cookie on first dashboard load (idempotent — no-op if already used)
+  useEffect(() => {
+    fetch("/api/invite/consume", { method: "POST" }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     const t = setTimeout(() => {
       setSearchQuery(searchInput);
