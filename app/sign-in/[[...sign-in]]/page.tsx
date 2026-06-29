@@ -54,10 +54,11 @@ export default function SignInPage() {
     }
     setOauthLoading(true);
     setError("");
+    const origin = window.location.origin;
     const { error: err } = await signIn.sso({
       strategy: "oauth_google",
-      redirectUrl: `${APP_URL}/sign-in/sso-callback`,
-      redirectCallbackUrl: APP_URL,
+      redirectUrl: `${origin}/sign-in/sso-callback`,
+      redirectCallbackUrl: `${origin}/dashboard`,
     });
     if (err) {
       setError(err.message ?? "Could not start Google sign-in.");

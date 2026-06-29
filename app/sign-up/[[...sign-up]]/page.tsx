@@ -67,10 +67,11 @@ export default function SignUpPage() {
     }
     setOauthLoading(true);
     setError("");
+    const origin = window.location.origin;
     const { error: err } = await signUp.sso({
       strategy: "oauth_google",
-      redirectUrl: `${APP_URL}/sign-up/sso-callback`,
-      redirectCallbackUrl: APP_URL,
+      redirectUrl: `${origin}/sign-up/sso-callback`,
+      redirectCallbackUrl: `${origin}/dashboard`,
     });
     if (err) {
       setError(err.message ?? "Could not start Google sign-up.");
