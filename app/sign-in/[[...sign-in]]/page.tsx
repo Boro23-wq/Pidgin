@@ -55,9 +55,20 @@ export default function SignInPage() {
     setError("");
     setFinalizing(true);
     try {
-      const signInAttempt = await legacySignIn.create({
+      const createdSignIn = await legacySignIn.create({ identifier: email });
+      const supportsPassword =
+        createdSignIn.supportedFirstFactors?.some(
+          (factor) => factor.strategy === "password",
+        ) ?? false;
+
+      if (!supportsPassword) {
+        setError("This account does not have password sign-in enabled. Try Google sign-in.");
+        setFinalizing(false);
+        return;
+      }
+
+      const signInAttempt = await createdSignIn.attemptFirstFactor({
         strategy: "password",
-        identifier: email,
         password,
       });
 

@@ -29,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider waitlistUrl="/waitlist">
       <html lang="en" suppressHydrationWarning>
         <body>
           <PostHogProvider>
