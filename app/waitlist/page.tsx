@@ -165,7 +165,9 @@ export default function WaitlistPage() {
                 <Check className="w-7 h-7 text-primary" />
               </motion.div>
               <h2 className="text-2xl font-bold tracking-tight mb-3">
-                {alreadyOnList ? "You're already on the list." : "You're on the list."}
+                {alreadyOnList
+                  ? "You're already on the list."
+                  : "You're on the list."}
               </h2>
               <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
                 {alreadyOnList
@@ -176,7 +178,7 @@ export default function WaitlistPage() {
                 onClick={() => router.push("/")}
                 className="mt-8 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
               >
-                ← Back to home
+                Back to home
               </button>
             </motion.div>
           ) : (
@@ -215,8 +217,8 @@ export default function WaitlistPage() {
                   opening Gmail.
                 </p>
                 <p className="mt-4 text-xs text-muted-foreground/50">
-                  Early alpha spots are limited while we tune the Gmail filtering
-                  and AI summaries.
+                  Early alpha spots are limited while we tune the Gmail
+                  filtering and AI summaries.
                 </p>
                 {showInviteOnlyMessage && (
                   <p className="mt-4 rounded-xl border border-primary/25 bg-primary/8 px-4 py-3 text-sm text-primary">

@@ -74,12 +74,18 @@ export default function SignInPage() {
     setOauthLoading(true);
     setError("");
     const origin = window.location.origin;
+    const redirectTimeout = window.setTimeout(() => {
+      setOauthLoading(false);
+      setError("Could not start Google sign-in. Please refresh and try again.");
+    }, 10000);
     try {
-      const { error: err } = await signIn.sso({
+      const { error: err } = await signIn.create({
         strategy: "oauth_google",
-        redirectUrl: `${origin}/dashboard`,
-        redirectCallbackUrl: `${origin}/sign-in/sso-callback`,
+        redirectUrl: `${origin}/sign-in/sso-callback`,
+        actionCompleteRedirectUrl: `${origin}/dashboard`,
+        signUpIfMissing: false,
       });
+      window.clearTimeout(redirectTimeout);
       if (err) {
         const message = getAuthErrorMessage(err, "Could not start Google sign-in.");
         if (isInviteOnlyAuthError(message)) sendToWaitlist();
@@ -87,6 +93,7 @@ export default function SignInPage() {
         setOauthLoading(false);
       }
     } catch (err) {
+      window.clearTimeout(redirectTimeout);
       const message = getAuthErrorMessage(err, "Could not start Google sign-in.");
       if (isInviteOnlyAuthError(message)) sendToWaitlist();
       else setError(message);

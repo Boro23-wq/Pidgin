@@ -32,10 +32,11 @@ export default function SignUpPage() {
   const { signUp, fetchStatus } = useSignUp();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
   const searchParams = useSearchParams();
-  const ticket =
+  const urlTicket =
     searchParams.get("__clerk_ticket") ?? searchParams.get("__clerk_invitation_token");
 
   const [step, setStep] = useState<Step>("register");
+  const [storedTicket, setStoredTicket] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -45,6 +46,18 @@ export default function SignUpPage() {
   const [oauthLoading, setOauthLoading] = useState(false);
 
   const isLoading = fetchStatus === "fetching";
+  const ticket = urlTicket ?? storedTicket;
+  const hasActiveSignUp =
+    Boolean(signUp?.id) &&
+    signUp?.status === "missing_requirements" &&
+    !signUp?.canBeDiscarded;
+  const isCompletingOAuthSignUp = hasActiveSignUp && Boolean(signUp?.emailAddress);
+  const isInvitedFlow = Boolean(ticket || hasActiveSignUp);
+
+  function goToDashboard() {
+    window.sessionStorage.removeItem("pidgin_clerk_invitation_ticket");
+    window.location.href = "/dashboard";
+  }
 
   function sendToWaitlist() {
     setError(INVITE_ONLY_MESSAGE);
@@ -55,9 +68,31 @@ export default function SignUpPage() {
 
   useEffect(() => {
     if (userLoaded && isSignedIn) {
-      window.location.href = "/dashboard";
+      goToDashboard();
     }
   }, [userLoaded, isSignedIn]);
+
+  useEffect(() => {
+    if (urlTicket) {
+      window.sessionStorage.setItem("pidgin_clerk_invitation_ticket", urlTicket);
+      setStoredTicket(urlTicket);
+      return;
+    }
+
+    setStoredTicket(window.sessionStorage.getItem("pidgin_clerk_invitation_ticket"));
+  }, [urlTicket]);
+
+  useEffect(() => {
+    if (signUp?.emailAddress) {
+      setEmail(signUp.emailAddress);
+    }
+  }, [signUp?.emailAddress]);
+
+  useEffect(() => {
+    if (!signUp || signUp.status !== "complete") return;
+
+    void signUp.finalize().then(goToDashboard);
+  }, [signUp, signUp?.status]);
 
   async function handleGoogleOAuth() {
     if (!signUp) {
@@ -71,19 +106,18 @@ export default function SignUpPage() {
     setOauthLoading(true);
     setError("");
     const origin = window.location.origin;
+    const redirectTimeout = window.setTimeout(() => {
+      setOauthLoading(false);
+      setError("Could not start Google sign-up. Please refresh and try again.");
+    }, 10000);
     try {
-      const { error: ticketErr } = await signUp.create({ strategy: "ticket", ticket });
-      if (ticketErr) {
-        setError(getAuthErrorMessage(ticketErr, "Invitation link is invalid or expired."));
-        setOauthLoading(false);
-        return;
-      }
-
-      const { error: err } = await signUp.sso({
+      const { error: err } = await signUp.create({
         strategy: "oauth_google",
-        redirectUrl: `${origin}/dashboard`,
-        redirectCallbackUrl: `${origin}/sign-up/sso-callback`,
+        ticket,
+        redirectUrl: `${origin}/sign-up/sso-callback`,
+        actionCompleteRedirectUrl: `${origin}/dashboard`,
       });
+      window.clearTimeout(redirectTimeout);
       if (err) {
         const message = getAuthErrorMessage(err, "Could not start Google sign-up.");
         if (isInviteOnlyAuthError(message)) sendToWaitlist();
@@ -91,6 +125,7 @@ export default function SignUpPage() {
         setOauthLoading(false);
       }
     } catch (err) {
+      window.clearTimeout(redirectTimeout);
       const message = getAuthErrorMessage(err, "Could not start Google sign-up.");
       if (isInviteOnlyAuthError(message)) sendToWaitlist();
       else setError(message);
@@ -103,11 +138,44 @@ export default function SignUpPage() {
     if (!signUp) return;
     setError("");
     setAccountExists(false);
-    if (!ticket) {
+    if (!isInvitedFlow) {
       sendToWaitlist();
       return;
     }
     try {
+      if (hasActiveSignUp && !urlTicket) {
+        const { error: passwordErr } = await signUp.password({ password });
+        if (passwordErr) {
+          setError(getAuthErrorMessage(passwordErr, "Could not finish your account."));
+          return;
+        }
+        if (signUp.status === "complete") {
+          await signUp.finalize();
+          goToDashboard();
+          return;
+        }
+        if (signUp.unverifiedFields.includes("email_address")) {
+          const { error: sendErr } = await signUp.verifications.sendEmailCode();
+          if (sendErr) {
+            setError(getAuthErrorMessage(sendErr, "Could not send verification code."));
+            return;
+          }
+          setStep("verify");
+          return;
+        }
+        if (signUp.missingFields.length) {
+          setError(`Missing account details: ${signUp.missingFields.join(", ")}.`);
+          return;
+        }
+        setError("Could not finish your Google sign-up. Please refresh and try again.");
+        return;
+      }
+
+      if (!ticket) {
+        sendToWaitlist();
+        return;
+      }
+
       // Activate invitation ticket before email/password sign-up so Clerk
       // allows it through Waitlist mode restriction.
       const { error: ticketErr } = await signUp.create({ strategy: "ticket", ticket });
@@ -133,7 +201,7 @@ export default function SignUpPage() {
       }
       if ((signUp as { status?: string }).status === "complete") {
         await signUp.finalize();
-        window.location.href = "/dashboard";
+        goToDashboard();
         return;
       }
       const { error: sendErr } = await signUp.verifications.sendEmailCode();
@@ -170,7 +238,7 @@ export default function SignUpPage() {
     }
     if (signUp.status === "complete") {
       await signUp.finalize();
-      window.location.href = "/dashboard";
+      goToDashboard();
     }
   }
 
@@ -214,7 +282,7 @@ export default function SignUpPage() {
               className="space-y-7"
             >
               {/* Invitation banner */}
-              {ticket && (
+              {isInvitedFlow && (
                 <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/25 bg-primary/8">
                   <motion.span
                     animate={{ opacity: [1, 0.4, 1] }}
@@ -264,31 +332,47 @@ export default function SignUpPage() {
                     className="space-y-6"
                   >
                     <div className="space-y-1">
-                      <h1 className="text-[1.75rem] font-bold tracking-tight">Create your account</h1>
-                      <p className="text-[0.9rem] text-muted-foreground">Start reading smarter in minutes</p>
+                      <h1 className="text-[1.75rem] font-bold tracking-tight">
+                        {isCompletingOAuthSignUp ? "Finish your account" : "Create your account"}
+                      </h1>
+                      <p className="text-[0.9rem] text-muted-foreground">
+                        {isCompletingOAuthSignUp
+                          ? "Google is connected. Choose a password to finish."
+                          : "Start reading smarter in minutes"}
+                      </p>
                     </div>
 
                     {/* Google */}
-                    <motion.button
-                      whileHover={{ scale: 1.015 }}
-                      whileTap={{ scale: 0.985 }}
-                      type="button"
-                      onClick={handleGoogleOAuth}
-                      disabled={oauthLoading || isLoading || !signUp}
-                      className="w-full h-11 rounded-xl border border-border/80 bg-card hover:bg-secondary/80 flex items-center justify-center gap-2.5 text-sm font-medium shadow-sm transition-all disabled:opacity-50"
-                    >
-                      <GoogleIcon />
-                      {oauthLoading ? "Redirecting…" : "Continue with Google"}
-                    </motion.button>
+                    {!isCompletingOAuthSignUp && (
+                      <>
+                        <motion.button
+                          whileHover={{ scale: 1.015 }}
+                          whileTap={{ scale: 0.985 }}
+                          type="button"
+                          onClick={handleGoogleOAuth}
+                          disabled={oauthLoading || isLoading || !signUp}
+                          className="w-full h-11 rounded-xl border border-border/80 bg-card hover:bg-secondary/80 flex items-center justify-center gap-2.5 text-sm font-medium shadow-sm transition-all disabled:opacity-50"
+                        >
+                          <GoogleIcon />
+                          {oauthLoading ? "Redirecting…" : "Continue with Google"}
+                        </motion.button>
 
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-border/50" />
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-border/50" />
+                          </div>
+                          <div className="relative flex justify-center">
+                            <span className="bg-background px-3 text-[11px] text-muted-foreground/50 uppercase tracking-widest">or</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {isCompletingOAuthSignUp && (
+                      <div className="rounded-lg border border-primary/20 bg-primary/8 px-3.5 py-2.5 text-xs text-primary">
+                        Continue with {signUp.emailAddress}
                       </div>
-                      <div className="relative flex justify-center">
-                        <span className="bg-background px-3 text-[11px] text-muted-foreground/50 uppercase tracking-widest">or</span>
-                      </div>
-                    </div>
+                    )}
 
                     <form onSubmit={handleRegister} className="space-y-4">
                       <div className="space-y-1.5">
@@ -301,6 +385,7 @@ export default function SignUpPage() {
                             value={email}
                             onChange={(e) => { setEmail(e.target.value); setAccountExists(false); setError(""); }}
                             required
+                            disabled={isCompletingOAuthSignUp}
                             autoComplete="email"
                             className="pl-10 h-11 text-sm bg-secondary/40 border-border/60 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/60 transition-all"
                           />
@@ -358,7 +443,13 @@ export default function SignUpPage() {
                         className="relative w-full h-11 rounded-xl text-white text-sm font-semibold overflow-hidden disabled:opacity-60 mt-1 shadow-lg shadow-primary/20"
                         style={{ background: "linear-gradient(135deg, hsl(199 89% 42%) 0%, hsl(221 83% 53%) 100%)" }}
                       >
-                        <span className="relative z-10">{isLoading ? "Creating account…" : "Create account"}</span>
+                        <span className="relative z-10">
+                          {isLoading
+                            ? "Creating account…"
+                            : isCompletingOAuthSignUp
+                              ? "Finish account"
+                              : "Create account"}
+                        </span>
                         <motion.span
                           className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -skew-x-12"
                           animate={{ x: ["-100%", "200%"] }}
