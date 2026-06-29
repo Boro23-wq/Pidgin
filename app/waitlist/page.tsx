@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useWaitlist } from "@clerk/nextjs";
 
 const ROLES = [
   "Solo founder",
@@ -64,6 +65,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 export default function WaitlistPage() {
   const router = useRouter();
+  const { waitlist } = useWaitlist();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
   const [count, setCount] = useState("");
@@ -104,9 +106,15 @@ export default function WaitlistPage() {
       const data = await res.json();
       if (data.existing) {
         setAlreadyOnList(true);
+        setSubmitted(true);
+        return;
       }
-      if (data.clerkError) {
-        console.error("[waitlist] Clerk error from server:", data.clerkError);
+      // Add to Clerk waitlist as Pending so it's invitable from the dashboard
+      if (waitlist) {
+        const { error: clerkErr } = await waitlist.join({ emailAddress: email });
+        if (clerkErr) {
+          console.error("[waitlist] Clerk join error:", clerkErr);
+        }
       }
       setSubmitted(true);
     } catch {

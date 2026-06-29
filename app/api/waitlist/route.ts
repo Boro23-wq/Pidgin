@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { clerkClient } from "@clerk/nextjs/server";
 
 export async function POST(req: Request) {
   const { email, role, newsletterCount, useCases, accessType } = await req.json();
@@ -31,15 +30,5 @@ export async function POST(req: Request) {
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
 
-  // Add to Clerk waitlist queue
-  let clerkError: string | null = null;
-  try {
-    const client = await clerkClient();
-    await client.waitlistEntries.create({ emailAddress: normalizedEmail, notify: false });
-  } catch (e: unknown) {
-    clerkError = e instanceof Error ? e.message : String(e);
-    console.error("[waitlist] Clerk error:", clerkError);
-  }
-
-  return NextResponse.json({ ok: true, clerkError });
+  return NextResponse.json({ ok: true });
 }
