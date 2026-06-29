@@ -1,6 +1,7 @@
 "use client";
 
-import { useSignIn, useUser } from "@clerk/nextjs";
+import { useSignIn as useFutureSignIn, useUser } from "@clerk/nextjs";
+import { useSignIn as useLegacySignIn } from "@clerk/nextjs/legacy";
 import { useState, useEffect } from "react";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,12 @@ import {
 } from "@/lib/invite-only";
 
 export default function SignInPage() {
-  const { signIn, fetchStatus } = useSignIn();
+  const { signIn, fetchStatus } = useFutureSignIn();
+  const {
+    isLoaded: legacySignInLoaded,
+    signIn: legacySignIn,
+    setActive,
+  } = useLegacySignIn();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
   const inviteOnly = isInviteOnlyEnabled();
 
@@ -26,10 +32,9 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [oauthLoading, setOauthLoading] = useState(false);
-  const [pendingFinalize, setPendingFinalize] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
 
-  const isLoading = fetchStatus === "fetching" || pendingFinalize || finalizing;
+  const isLoading = fetchStatus === "fetching" || !legacySignInLoaded || finalizing;
 
   function sendToWaitlist() {
     setError(INVITE_ONLY_MESSAGE);
@@ -44,63 +49,37 @@ export default function SignInPage() {
     }
   }, [userLoaded, isSignedIn]);
 
-  useEffect(() => {
-    if (!pendingFinalize || !signIn || finalizing || fetchStatus === "fetching") return;
-
-    if (signIn.status === "complete") {
-      setFinalizing(true);
-      void signIn
-        .finalize()
-        .then(({ error: finalizeErr }) => {
-          if (finalizeErr) {
-            setError(getAuthErrorMessage(finalizeErr, "Could not complete sign-in."));
-            setPendingFinalize(false);
-            setFinalizing(false);
-            return;
-          }
-
-          window.location.href = "/dashboard";
-        })
-        .catch((err) => {
-          setError(getAuthErrorMessage(err, "Could not complete sign-in."));
-          setPendingFinalize(false);
-          setFinalizing(false);
-        });
-      return;
-    }
-
-    if (signIn.status === "needs_second_factor") {
-      setError("This account needs a second sign-in step. Try Google sign-in for now.");
-      setPendingFinalize(false);
-    }
-
-    if (signIn.status === "needs_new_password") {
-      setError("This account needs a password reset before signing in.");
-      setPendingFinalize(false);
-    }
-  }, [fetchStatus, finalizing, pendingFinalize, signIn, signIn?.status]);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!signIn) return;
+    if (!legacySignIn || !setActive) return;
     setError("");
+    setFinalizing(true);
     try {
-      const { error: passwordErr } = await signIn.password({
+      const signInAttempt = await legacySignIn.create({
+        strategy: "password",
         identifier: email,
         password,
       });
-      if (passwordErr) {
-        const message = getAuthErrorMessage(passwordErr, "Invalid email or password.");
-        if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
-        else setError(message);
+
+      if (signInAttempt.status === "complete" && signInAttempt.createdSessionId) {
+        await setActive({ session: signInAttempt.createdSessionId });
+        window.location.href = "/dashboard";
         return;
       }
 
-      setPendingFinalize(true);
+      if (signInAttempt.status === "needs_second_factor") {
+        setError("This account needs a second sign-in step. Try Google sign-in for now.");
+      } else if (signInAttempt.status === "needs_new_password") {
+        setError("This account needs a password reset before signing in.");
+      } else {
+        setError("Sign-in did not complete. Please refresh and try again.");
+      }
+      setFinalizing(false);
     } catch (err) {
       const message = getAuthErrorMessage(err, "Invalid email or password.");
       if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
       else setError(message);
+      setFinalizing(false);
     }
   }
 
@@ -279,7 +258,7 @@ export default function SignInPage() {
                   type="submit"
                   whileHover={{ opacity: 0.92 }}
                   whileTap={{ scale: 0.98 }}
-                  disabled={isLoading || !signIn}
+                  disabled={isLoading || !legacySignIn}
                   className="relative w-full h-11 rounded-xl text-white text-sm font-semibold overflow-hidden disabled:opacity-60 mt-1 shadow-lg shadow-primary/20"
                   style={{
                     background:
