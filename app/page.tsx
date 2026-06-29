@@ -19,6 +19,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { isInviteOnlyEnabled } from "@/lib/invite-only";
 
 // ---------------------------------------------------------------------------
 // Floating particles
@@ -763,6 +764,9 @@ function FeatureCard({
 // ---------------------------------------------------------------------------
 function LandingPage() {
   const router = useRouter();
+  const inviteOnly = isInviteOnlyEnabled();
+  const accessRoute = inviteOnly ? "/waitlist" : "/sign-up";
+  const accessLabel = inviteOnly ? "Request access" : "Get started";
 
   const steps = [
     {
@@ -891,9 +895,9 @@ function LandingPage() {
               <Button
                 size="sm"
                 className="text-xs gap-1.5"
-                onClick={() => router.push("/waitlist")}
+                onClick={() => router.push(accessRoute)}
               >
-                Join alpha
+                {inviteOnly ? "Join alpha" : "Get started"}
                 <ChevronDown className="w-3 h-3 rotate-[-90deg]" />
               </Button>
             </div>
@@ -916,7 +920,7 @@ function LandingPage() {
                 transition={{ duration: 2, repeat: Infinity }}
                 className="w-1.5 h-1.5 rounded-full bg-primary"
               />
-              Now in alpha · invite only
+              {inviteOnly ? "Now in alpha · invite only" : "Now in alpha"}
             </div>
           </motion.div>
 
@@ -955,11 +959,11 @@ function LandingPage() {
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => router.push("/waitlist")}
+              onClick={() => router.push(accessRoute)}
               className="relative inline-flex items-center gap-2 px-7 h-11 rounded-lg bg-primary text-white text-sm font-medium overflow-hidden transition-opacity hover:opacity-90"
             >
               <span className="relative z-10 flex items-center gap-2">
-                Request access
+                {accessLabel}
                 <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
               </span>
               <motion.span
@@ -1143,10 +1147,10 @@ function LandingPage() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => router.push("/waitlist")}
+                onClick={() => router.push(accessRoute)}
                 className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
-                Join the alpha →
+                {inviteOnly ? "Join the alpha ->" : "Get started ->"}
               </motion.button>
               <p className="text-[10px] text-muted-foreground/35 text-center mt-3">
                 Free during alpha. 60 days notice before any paid tier goes live.
@@ -1224,11 +1228,11 @@ function LandingPage() {
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
-            onClick={() => router.push("/waitlist")}
+            onClick={() => router.push(accessRoute)}
             className="relative inline-flex items-center gap-2 px-8 h-11 rounded-lg bg-primary text-white text-sm font-medium overflow-hidden transition-opacity hover:opacity-90"
           >
             <span className="relative z-10 flex items-center gap-2">
-              Join the alpha
+              {inviteOnly ? "Join the alpha" : "Get started"}
               <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
             </span>
             <motion.span

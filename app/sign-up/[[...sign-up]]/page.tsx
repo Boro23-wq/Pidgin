@@ -13,6 +13,7 @@ import {
   INVITE_ONLY_MESSAGE,
   getAuthErrorMessage,
   getInviteOnlyWaitlistUrl,
+  isInviteOnlyEnabled,
   isInviteOnlyAuthError,
 } from "@/lib/invite-only";
 
@@ -32,6 +33,7 @@ export default function SignUpPage() {
   const { signUp, fetchStatus } = useSignUp();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
   const searchParams = useSearchParams();
+  const inviteOnly = isInviteOnlyEnabled();
   const urlTicket =
     searchParams.get("__clerk_ticket") ?? searchParams.get("__clerk_invitation_token");
 
@@ -52,7 +54,8 @@ export default function SignUpPage() {
     signUp?.status === "missing_requirements" &&
     !signUp?.canBeDiscarded;
   const isCompletingOAuthSignUp = hasActiveSignUp && Boolean(signUp?.emailAddress);
-  const isInvitedFlow = Boolean(ticket || hasActiveSignUp);
+  const hasInvitationContext = Boolean(ticket || hasActiveSignUp);
+  const isInvitedFlow = !inviteOnly || hasInvitationContext;
 
   function goToDashboard() {
     window.sessionStorage.removeItem("pidgin_clerk_invitation_ticket");
@@ -99,7 +102,7 @@ export default function SignUpPage() {
       setError("Sign-up not ready — please refresh the page.");
       return;
     }
-    if (!ticket) {
+    if (inviteOnly && !ticket) {
       sendToWaitlist();
       return;
     }
@@ -111,15 +114,17 @@ export default function SignUpPage() {
       setError("Could not start Google sign-up. Please refresh and try again.");
     }, 10000);
     try {
-      const { error: ticketErr } = await signUp.create({
-        strategy: "ticket",
-        ticket,
-      });
-      if (ticketErr) {
-        window.clearTimeout(redirectTimeout);
-        setError(getAuthErrorMessage(ticketErr, "Invitation link is invalid or expired."));
-        setOauthLoading(false);
-        return;
+      if (ticket) {
+        const { error: ticketErr } = await signUp.create({
+          strategy: "ticket",
+          ticket,
+        });
+        if (ticketErr) {
+          window.clearTimeout(redirectTimeout);
+          setError(getAuthErrorMessage(ticketErr, "Invitation link is invalid or expired."));
+          setOauthLoading(false);
+          return;
+        }
       }
 
       const { error: err } = await signUp.sso({
@@ -130,14 +135,14 @@ export default function SignUpPage() {
       window.clearTimeout(redirectTimeout);
       if (err) {
         const message = getAuthErrorMessage(err, "Could not start Google sign-up.");
-        if (isInviteOnlyAuthError(message)) sendToWaitlist();
+        if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
         else setError(message);
         setOauthLoading(false);
       }
     } catch (err) {
       window.clearTimeout(redirectTimeout);
       const message = getAuthErrorMessage(err, "Could not start Google sign-up.");
-      if (isInviteOnlyAuthError(message)) sendToWaitlist();
+      if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
       else setError(message);
       setOauthLoading(false);
     }
@@ -181,17 +186,19 @@ export default function SignUpPage() {
         return;
       }
 
-      if (!ticket) {
+      if (inviteOnly && !ticket) {
         sendToWaitlist();
         return;
       }
 
-      // Activate invitation ticket before email/password sign-up so Clerk
-      // allows it through Waitlist mode restriction.
-      const { error: ticketErr } = await signUp.create({ strategy: "ticket", ticket });
-      if (ticketErr) {
-        setError(getAuthErrorMessage(ticketErr, "Invitation link is invalid or expired."));
-        return;
+      if (ticket) {
+        // Activate invitation ticket before email/password sign-up so Clerk
+        // allows it through Waitlist mode restriction.
+        const { error: ticketErr } = await signUp.create({ strategy: "ticket", ticket });
+        if (ticketErr) {
+          setError(getAuthErrorMessage(ticketErr, "Invitation link is invalid or expired."));
+          return;
+        }
       }
       const { error: err } = await signUp.password({
         emailAddress: email,
@@ -199,7 +206,7 @@ export default function SignUpPage() {
       });
       if (err) {
         const msg = getAuthErrorMessage(err, "Something went wrong. Try again.");
-        if (isInviteOnlyAuthError(msg)) {
+        if (inviteOnly && isInviteOnlyAuthError(msg)) {
           sendToWaitlist();
           return;
         }
@@ -226,7 +233,7 @@ export default function SignUpPage() {
       setStep("verify");
     } catch (e: unknown) {
       const msg = getAuthErrorMessage(e, "Something went wrong. Try again.");
-      if (isInviteOnlyAuthError(msg)) {
+      if (inviteOnly && isInviteOnlyAuthError(msg)) {
         sendToWaitlist();
         return;
       }
@@ -292,7 +299,7 @@ export default function SignUpPage() {
               className="space-y-7"
             >
               {/* Invitation banner */}
-              {isInvitedFlow && (
+              {hasInvitationContext && (
                 <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/25 bg-primary/8">
                   <motion.span
                     animate={{ opacity: [1, 0.4, 1] }}

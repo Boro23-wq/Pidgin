@@ -61,6 +61,7 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=http://localhost:3000/dashboard
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_INVITE_ONLY=false
 
 # Google (Web application OAuth client)
 GOOGLE_CLIENT_ID=

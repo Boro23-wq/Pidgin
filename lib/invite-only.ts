@@ -1,6 +1,10 @@
 export const INVITE_ONLY_MESSAGE =
   "Pidgin is invite-only right now. Join the waitlist and I will send you an invite when a spot opens.";
 
+export function isInviteOnlyEnabled() {
+  return process.env.NEXT_PUBLIC_INVITE_ONLY !== "false";
+}
+
 export function getInviteOnlyWaitlistUrl(from: "sign-in" | "sign-up") {
   return `/waitlist?auth=invite-only&from=${from}`;
 }

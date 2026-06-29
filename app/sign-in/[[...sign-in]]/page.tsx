@@ -12,12 +12,20 @@ import {
   INVITE_ONLY_MESSAGE,
   getAuthErrorMessage,
   getInviteOnlyWaitlistUrl,
+  isInviteOnlyEnabled,
   isInviteOnlyAuthError,
 } from "@/lib/invite-only";
+
+type SignInAttempt = {
+  error?: unknown;
+  status?: string;
+  finalize?: () => Promise<void>;
+};
 
 export default function SignInPage() {
   const { signIn, fetchStatus } = useSignIn();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
+  const inviteOnly = isInviteOnlyEnabled();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,23 +53,27 @@ export default function SignInPage() {
     if (!signIn) return;
     setError("");
     try {
-      const { error: err } = await signIn.password({
+      const result = (await signIn.password({
         identifier: email,
         password,
-      });
+      })) as SignInAttempt;
+      const err = result.error;
       if (err) {
         const message = getAuthErrorMessage(err, "Invalid email or password.");
-        if (isInviteOnlyAuthError(message)) sendToWaitlist();
+        if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
         else setError(message);
         return;
       }
-      if (signIn.status === "complete") {
-        await signIn.finalize();
+      const status = result.status ?? signIn.status;
+      if (status === "complete") {
+        await (result.finalize ? result.finalize() : signIn.finalize());
         window.location.href = "/dashboard";
+        return;
       }
+      setError("Sign-in did not complete. Please refresh and try again.");
     } catch (err) {
       const message = getAuthErrorMessage(err, "Invalid email or password.");
-      if (isInviteOnlyAuthError(message)) sendToWaitlist();
+      if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
       else setError(message);
     }
   }
@@ -83,19 +95,19 @@ export default function SignInPage() {
         strategy: "oauth_google",
         redirectUrl: `${origin}/sign-in/sso-callback`,
         actionCompleteRedirectUrl: `${origin}/dashboard`,
-        signUpIfMissing: false,
+        signUpIfMissing: !inviteOnly,
       });
       window.clearTimeout(redirectTimeout);
       if (err) {
         const message = getAuthErrorMessage(err, "Could not start Google sign-in.");
-        if (isInviteOnlyAuthError(message)) sendToWaitlist();
+        if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
         else setError(message);
         setOauthLoading(false);
       }
     } catch (err) {
       window.clearTimeout(redirectTimeout);
       const message = getAuthErrorMessage(err, "Could not start Google sign-in.");
-      if (isInviteOnlyAuthError(message)) sendToWaitlist();
+      if (inviteOnly && isInviteOnlyAuthError(message)) sendToWaitlist();
       else setError(message);
       setOauthLoading(false);
     }
@@ -118,8 +130,8 @@ export default function SignInPage() {
             <img src="/pidgin-main.png" alt="Pidgin" className="w-7 h-7" />
             <span className="font-semibold text-sm">Pidgin</span>
           </Link>
-          <Link href="/waitlist" className="text-xs text-primary  font-medium">
-            Request access
+          <Link href={inviteOnly ? "/waitlist" : "/sign-up"} className="text-xs text-primary  font-medium">
+            {inviteOnly ? "Request access" : "Sign up"}
           </Link>
         </div>
 
@@ -127,8 +139,8 @@ export default function SignInPage() {
         <div className="hidden lg:flex justify-end px-10 pt-8">
           <p className="text-xs text-muted-foreground">
             No account?{" "}
-            <Link href="/waitlist" className="text-primary  font-medium">
-              Request access
+            <Link href={inviteOnly ? "/waitlist" : "/sign-up"} className="text-primary  font-medium">
+              {inviteOnly ? "Request access" : "Sign up"}
             </Link>
           </p>
         </div>

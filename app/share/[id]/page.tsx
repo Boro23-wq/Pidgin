@@ -2,6 +2,18 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { Metadata } from "next";
 
+const CAT_STYLE: Record<string, string> = {
+  "AI & ML": "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
+  Tech: "bg-blue-500/15 text-blue-400 border-blue-500/25",
+  Science: "bg-cyan-500/15 text-cyan-400 border-cyan-500/25",
+  Business: "bg-amber-500/15 text-amber-400 border-amber-500/25",
+  Finance: "bg-green-500/15 text-green-400 border-green-500/25",
+  Politics: "bg-red-500/15 text-red-400 border-red-500/25",
+  Health: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+  Startups: "bg-purple-500/15 text-purple-400 border-purple-500/25",
+  Other: "bg-zinc-500/15 text-zinc-400 border-zinc-500/25",
+};
+
 async function getSummary(id: string) {
   const { data } = await supabase
     .from("summaries")
@@ -11,7 +23,11 @@ async function getSummary(id: string) {
   return data;
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
   const { id } = await params;
   const s = await getSummary(id);
   if (!s) return { title: "Pidgin" };
@@ -32,57 +48,70 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
-export default async function SharePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SharePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const s = await getSummary(id);
   if (!s) notFound();
 
-  const senderName = s.source_email.match(/^(.+?)\s*</)?.[1]?.trim().replace(/^["']|["']$/g, "")
-    ?? s.source_email.split("@")[0];
+  const senderName =
+    s.source_email
+      .match(/^(.+?)\s*</)?.[1]
+      ?.trim()
+      .replace(/^["']|["']$/g, "") ?? s.source_email.split("@")[0];
 
   const keyPoints: string[] = Array.isArray(s.key_points) ? s.key_points : [];
+  const cat = s.category || "Other";
+  const catStyle = CAT_STYLE[cat] ?? CAT_STYLE["Other"];
 
   return (
-    <div className="min-h-screen bg-[#030712] text-white flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
-      <header className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/pidgin-main.png" alt="Pidgin" className="w-6 h-6 rounded-md" />
-          <span className="text-sm font-bold tracking-tight">Pidgin</span>
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-40">
+        <div className="max-w-2xl mx-auto py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/pidgin-main.png"
+              alt="Pidgin"
+              className="w-8 h-8 rounded-md"
+            />
+          </div>
+          <a
+            href="/dashboard"
+            className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            Open app →
+          </a>
         </div>
-        <a
-          href="/dashboard"
-          className="text-xs text-white/40 hover:text-white/70 transition-colors"
-        >
-          Open app →
-        </a>
       </header>
 
-      {/* Card */}
-      <main className="flex-1 flex items-start justify-center px-4 py-16">
+      {/* Content */}
+      <main className="flex-1 flex items-start justify-center px-4 py-12 sm:py-16">
         <article className="w-full max-w-2xl">
-          {/* Source + category */}
-          <div className="flex items-center gap-2 mb-6">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-white/30">
+          {/* Meta row */}
+          <div className="flex items-center gap-2 mb-5">
+            <span
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${catStyle}`}
+            >
+              {cat}
+            </span>
+            <span className="text-xs text-muted-foreground/60">
               {senderName}
             </span>
-            {s.category && (
-              <>
-                <span className="text-white/20">·</span>
-                <span className="text-[11px] text-white/30">{s.category}</span>
-              </>
-            )}
           </div>
 
           {/* Title */}
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-8 text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-6">
             {s.newsletter_title}
           </h1>
 
           {/* Summary */}
           {s.summary && (
-            <p className="text-base text-white/70 leading-[1.8] mb-8">
+            <p className="text-base text-foreground/75 leading-[1.8] mb-8">
               {s.summary}
             </p>
           )}
@@ -90,13 +119,18 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
           {/* Key points */}
           {keyPoints.length > 0 && (
             <div className="mb-8">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/25 mb-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/40 mb-4">
                 Key points
               </p>
               <ul className="space-y-3">
                 {keyPoints.map((pt, i) => (
-                  <li key={i} className="flex gap-3 text-sm text-white/60 leading-relaxed">
-                    <span className="text-indigo-400 mt-0.5 flex-shrink-0">▸</span>
+                  <li
+                    key={i}
+                    className="flex gap-3 text-sm text-foreground/70 leading-relaxed"
+                  >
+                    <span className="text-primary mt-0.5 flex-shrink-0 text-xs">
+                      ▸
+                    </span>
                     {pt}
                   </li>
                 ))}
@@ -106,22 +140,28 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
 
           {/* Simple explanation */}
           {s.simple_explanation && (
-            <div className="border-l-2 border-white/10 pl-4 mb-10">
-              <p className="text-sm text-white/40 italic leading-relaxed">
+            <div className="border-l-2 border-border pl-4 mb-10">
+              <p className="text-sm text-muted-foreground/60 italic leading-relaxed">
                 {s.simple_explanation}
               </p>
             </div>
           )}
 
           {/* Footer */}
-          <div className="flex items-center justify-between pt-6 border-t border-white/[0.06]">
-            <p className="text-[11px] text-white/25">
+          <div className="flex items-center justify-between flex-wrap gap-4 border-t border-border/50">
+            <p className="text-[11px] text-muted-foreground/40">
               Summarized by{" "}
-              <span className="font-semibold text-white/40">Pidgin</span>
+              <span className="font-semibold text-muted-foreground/60">
+                Pidgin
+              </span>
             </p>
             <a
-              href="/dashboard"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+              href="/waitlist"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 mt-6 rounded-xl text-xs font-semibold text-white transition-all shadow-sm shadow-primary/20 hover:opacity-90"
+              style={{
+                background:
+                  "linear-gradient(135deg, hsl(199 89% 42%) 0%, hsl(221 83% 53%) 100%)",
+              }}
             >
               Get your own digest →
             </a>
