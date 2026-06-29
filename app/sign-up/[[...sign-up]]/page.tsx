@@ -52,14 +52,11 @@ export default function SignUpPage() {
     if (!signUp || !ticket) return;
     signUp
       .create({ strategy: "ticket", ticket })
-      .then((result) => {
-        if (result.status === "complete") {
-          window.location.href = "/dashboard";
-        }
+      .then(({ error: err }) => {
+        if (err) setError(err.message ?? "Invitation link is invalid or expired.");
       })
       .catch((e: unknown) => {
-        const msg = e instanceof Error ? e.message : String(e);
-        setError(msg || "Invitation link is invalid or expired.");
+        setError(e instanceof Error ? e.message : "Invitation link is invalid or expired.");
       });
   }, [signUp, ticket]);
 
@@ -87,44 +84,33 @@ export default function SignUpPage() {
     setError("");
     setAccountExists(false);
     try {
-      if (ticket) {
-        // Ticket was activated on mount via create(); update existing sign-up with credentials
-        const result = await signUp.update({ emailAddress: email, password });
-        if (result.status === "complete") {
-          window.location.href = "/dashboard";
-          return;
-        }
-        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-        setStep("verify");
-      } else {
-        const { error: err } = await signUp.password({
-          emailAddress: email,
-          password,
-        });
-        if (err) {
-          const msg = err.message ?? "Something went wrong. Try again.";
-          if (isExistingAccountError(msg)) {
-            setAccountExists(true);
-            setError("An account with this email already exists.");
-          } else setError(msg);
-          return;
-        }
-        if ((signUp as { status?: string }).status === "complete") {
-          await signUp.finalize();
-          window.location.href = "/dashboard";
-          return;
-        }
-        const { error: sendErr } = await signUp.verifications.sendEmailCode();
-        if (sendErr) {
-          const msg = sendErr.message ?? "";
-          if (isExistingAccountError(msg)) {
-            setAccountExists(true);
-            setError("An account with this email already exists.");
-          } else setError(msg || "Could not send verification code.");
-          return;
-        }
-        setStep("verify");
+      const { error: err } = await signUp.password({
+        emailAddress: email,
+        password,
+      });
+      if (err) {
+        const msg = err.message ?? "Something went wrong. Try again.";
+        if (isExistingAccountError(msg)) {
+          setAccountExists(true);
+          setError("An account with this email already exists.");
+        } else setError(msg);
+        return;
       }
+      if ((signUp as { status?: string }).status === "complete") {
+        await signUp.finalize();
+        window.location.href = "/dashboard";
+        return;
+      }
+      const { error: sendErr } = await signUp.verifications.sendEmailCode();
+      if (sendErr) {
+        const msg = sendErr.message ?? "";
+        if (isExistingAccountError(msg)) {
+          setAccountExists(true);
+          setError("An account with this email already exists.");
+        } else setError(msg || "Could not send verification code.");
+        return;
+      }
+      setStep("verify");
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? e.message : "Something went wrong. Try again.";
@@ -139,20 +125,14 @@ export default function SignUpPage() {
     e.preventDefault();
     if (!signUp) return;
     setError("");
-    try {
-      const result = ticket
-        ? await signUp.attemptEmailAddressVerification({ code })
-        : await signUp.verifications.verifyEmailCode({ code }).then((r: { error?: { message?: string } }) => r);
-      const err = (result as { error?: { message?: string } }).error;
-      if (err) {
-        setError(err.message ?? "Invalid code. Check your email.");
-        return;
-      }
-      if (signUp.status === "complete") {
-        window.location.href = "/dashboard";
-      }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Invalid code. Check your email.");
+    const { error: err } = await signUp.verifications.verifyEmailCode({ code });
+    if (err) {
+      setError(err.message ?? "Invalid code. Check your email.");
+      return;
+    }
+    if (signUp.status === "complete") {
+      await signUp.finalize();
+      window.location.href = "/dashboard";
     }
   }
 
