@@ -159,7 +159,7 @@ export default function SignUpPage() {
           setError(getAuthErrorMessage(passwordErr, "Could not finish your account."));
           return;
         }
-        if (signUp.status === "complete") {
+        if ((signUp as { status?: string }).status === "complete") {
           await signUp.finalize();
           goToDashboard();
           return;
