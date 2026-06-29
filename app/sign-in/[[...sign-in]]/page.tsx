@@ -9,8 +9,6 @@ import Link from "next/link";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
 export default function SignInPage() {
   const { signIn, fetchStatus } = useSignIn();
   const { isSignedIn, isLoaded: userLoaded } = useUser();
