@@ -309,40 +309,55 @@ export async function fetchNewsletterMetadata(
       query += ` after:${dateStr}`;
     }
 
-    const listMax = maxResults ? Math.max(maxResults * 8, 60) : 100;
+    const listMax = maxResults ? Math.max(maxResults * 3, 60) : 100;
     const res = await gmail.users.messages.list({ userId: "me", q: query, maxResults: listMax });
     const messages = res.data.messages || [];
     console.log("[gmail/scan] query:", query, "| candidates:", messages.length);
 
     const previews: EmailPreview[] = [];
+    const batchSize = 12;
 
-    for (const message of messages) {
+    for (let i = 0; i < messages.length; i += batchSize) {
       if (maxResults && previews.length >= maxResults) break;
 
-      const msg = await gmail.users.messages.get({
-        userId: "me",
-        id: message.id!,
-        format: "metadata",
-        metadataHeaders: ["Subject", "From", "List-Unsubscribe", "List-Archive"],
-      });
+      const batch = messages.slice(i, i + batchSize);
+      const batchMessages = await Promise.all(
+        batch.map(async (message) => {
+          if (!message.id) return null;
 
-      const headers = msg.data.payload?.headers || [];
-      const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
-      const from = headers.find((h) => h.name === "From")?.value || "Unknown";
-      const internalDate = parseInt(msg.data.internalDate || "0");
+          const msg = await gmail.users.messages.get({
+            userId: "me",
+            id: message.id,
+            format: "metadata",
+            metadataHeaders: ["Subject", "From", "List-Unsubscribe", "List-Archive"],
+          });
 
-      if (!isLikelyNewsletter(from, subject, headers, blockedDomains)) continue;
+          return { id: message.id, data: msg.data };
+        }),
+      );
 
-      const { fromName, fromEmail, domain } = parseFrom(from);
-      previews.push({
-        id: message.id!,
-        subject,
-        from,
-        fromName,
-        fromEmail,
-        domain,
-        receivedAt: new Date(internalDate).toISOString(),
-      });
+      for (const msg of batchMessages) {
+        if (!msg) continue;
+        if (maxResults && previews.length >= maxResults) break;
+
+        const headers = msg.data.payload?.headers || [];
+        const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
+        const from = headers.find((h) => h.name === "From")?.value || "Unknown";
+        const internalDate = parseInt(msg.data.internalDate || "0");
+
+        if (!isLikelyNewsletter(from, subject, headers, blockedDomains)) continue;
+
+        const { fromName, fromEmail, domain } = parseFrom(from);
+        previews.push({
+          id: msg.id,
+          subject,
+          from,
+          fromName,
+          fromEmail,
+          domain,
+          receivedAt: new Date(internalDate).toISOString(),
+        });
+      }
     }
 
     console.log("[gmail/scan] newsletters found:", previews.length);

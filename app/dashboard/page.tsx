@@ -91,6 +91,12 @@ interface SyncProgress {
   title: string;
 }
 
+type ScanResponse = {
+  error?: string;
+  newsletters?: EmailPreview[];
+  isFirstSync?: boolean;
+};
+
 type Platform = "linkedin" | "twitter";
 type SortOption = "newest" | "oldest" | "source" | "category";
 type DateFilter = "7d" | "all";
@@ -126,6 +132,17 @@ const CAT_STYLE: Record<string, string> = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+async function readJsonResponse<T>(res: Response): Promise<T | null> {
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) return null;
+
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
@@ -1667,7 +1684,17 @@ export default function Dashboard() {
 
     try {
       const res = await fetch("/api/scan", { method: "POST", signal: controller.signal });
-      const data = await res.json();
+      const data = await readJsonResponse<ScanResponse>(res);
+
+      if (!res.ok) {
+        setSyncError(data?.error ?? `Scan failed with status ${res.status}`);
+        return;
+      }
+
+      if (!data) {
+        setSyncError("Scan failed because the server returned an empty response.");
+        return;
+      }
 
       if (data.error) {
         setSyncError(data.error);
