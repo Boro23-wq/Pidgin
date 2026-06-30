@@ -5,10 +5,29 @@ import { PostHogProvider, PostHogPageView, PostHogIdentify } from "@/components/
 import { Suspense } from "react";
 import "./globals.css";
 
+const APP_URL = "https://pidgin.site";
+
 export const metadata: Metadata = {
-  title: "Pidgin",
-  description:
-    "AI-powered newsletter summaries and on-demand social post generation",
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: "Pidgin — All the signal. None of the noise.",
+    template: "%s — Pidgin",
+  },
+  description: "Your newsletters, summarized and delivered daily. Cut through inbox noise with AI-powered digests.",
+  openGraph: {
+    type: "website",
+    url: APP_URL,
+    siteName: "Pidgin",
+    title: "Pidgin — All the signal. None of the noise.",
+    description: "Your newsletters, summarized and delivered daily. Cut through inbox noise with AI-powered digests.",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Pidgin" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pidgin — All the signal. None of the noise.",
+    description: "Your newsletters, summarized and delivered daily.",
+    images: ["/og.png"],
+  },
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },

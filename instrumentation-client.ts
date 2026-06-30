@@ -9,3 +9,5 @@ Sentry.init({
   integrations: [Sentry.replayIntegration({ maskAllText: false, blockAllMedia: false })],
   enabled: process.env.NODE_ENV === "production",
 });
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
