@@ -49,7 +49,6 @@ coverage/
 # misc
 .vercel
 .turbo
-vercel.json
 
 # local docs
 PROJECT_SUMMARY.md

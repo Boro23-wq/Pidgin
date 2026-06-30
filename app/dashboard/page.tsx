@@ -28,12 +28,20 @@ import {
   LayoutGrid,
   Inbox,
   ThumbsDown,
+  ThumbsUp,
   Share2,
+  MessageSquare,
+  CheckCheck,
 } from "lucide-react";
 
 function XIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="currentColor"
+      aria-hidden="true"
+    >
       <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.738l7.737-8.817-8.157-10.683H8.06l4.265 5.633L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
     </svg>
   );
@@ -118,15 +126,23 @@ const CATEGORIES = [
 ] as const;
 
 const CAT_STYLE: Record<string, string> = {
-  "AI & ML": "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/35 dark:border-indigo-500/25",
+  "AI & ML":
+    "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/35 dark:border-indigo-500/25",
   Tech: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/35 dark:border-blue-500/25",
-  Science: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/35 dark:border-cyan-500/25",
-  Business: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/35 dark:border-amber-500/25",
-  Finance: "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/35 dark:border-green-500/25",
-  Politics: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/35 dark:border-red-500/25",
-  Health: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/35 dark:border-emerald-500/25",
-  Startups: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/35 dark:border-purple-500/25",
-  Other: "bg-zinc-500/15 text-zinc-500 dark:text-zinc-400 border-zinc-500/35 dark:border-zinc-500/25",
+  Science:
+    "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/35 dark:border-cyan-500/25",
+  Business:
+    "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/35 dark:border-amber-500/25",
+  Finance:
+    "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/35 dark:border-green-500/25",
+  Politics:
+    "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/35 dark:border-red-500/25",
+  Health:
+    "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/35 dark:border-emerald-500/25",
+  Startups:
+    "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/35 dark:border-purple-500/25",
+  Other:
+    "bg-zinc-500/15 text-zinc-500 dark:text-zinc-400 border-zinc-500/35 dark:border-zinc-500/25",
 };
 
 // ---------------------------------------------------------------------------
@@ -377,8 +393,14 @@ function SyncOverlay({
   const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!scanning) { setSentenceIdx(0); return; }
-    const t = setInterval(() => setSentenceIdx((i) => (i + 1) % SCAN_SENTENCES.length), 2600);
+    if (!scanning) {
+      setSentenceIdx(0);
+      return;
+    }
+    const t = setInterval(
+      () => setSentenceIdx((i) => (i + 1) % SCAN_SENTENCES.length),
+      2600,
+    );
     return () => clearInterval(t);
   }, [scanning]);
 
@@ -390,7 +412,9 @@ function SyncOverlay({
   const show = scanning || importing || !!stats || !!error;
   if (!show) return null;
 
-  const pct = progress ? Math.round((progress.current / progress.total) * 100) : 0;
+  const pct = progress
+    ? Math.round((progress.current / progress.total) * 100)
+    : 0;
 
   // ETA: remaining batches × avg seconds per batch
   const remaining = progress ? progress.total - progress.current : 0;
@@ -429,16 +453,32 @@ function SyncOverlay({
               <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
               <p className="text-sm font-medium">Something went wrong</p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed pl-[18px]">{error}</p>
-            <button onClick={onDismiss} className="pl-[18px] text-xs text-primary font-medium">Dismiss</button>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-[18px]">
+              {error}
+            </p>
+            <button
+              onClick={onDismiss}
+              className="pl-[18px] text-xs text-primary font-medium"
+            >
+              Dismiss
+            </button>
           </div>
         ) : stats ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="space-y-3"
+          >
             <div className="flex items-center gap-2.5">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.05 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 500,
+                  damping: 20,
+                  delay: 0.05,
+                }}
                 className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"
               />
               <p className="text-sm font-medium">
@@ -450,12 +490,19 @@ function SyncOverlay({
               </p>
             </div>
             {stats.nothingNew ? (
-              <p className="text-xs text-muted-foreground pl-[18px]">No newsletters arrived yet today</p>
+              <p className="text-xs text-muted-foreground pl-[18px]">
+                No newsletters arrived yet today
+              </p>
             ) : stats.skippedCount > 0 ? (
-              <p className="text-xs text-muted-foreground pl-[18px]">{stats.skippedCount} already in your digest</p>
+              <p className="text-xs text-muted-foreground pl-[18px]">
+                {stats.skippedCount} already in your digest
+              </p>
             ) : null}
             <div className="pl-[18px]">
-              <button onClick={onDismiss} className="text-xs text-primary font-medium">
+              <button
+                onClick={onDismiss}
+                className="text-xs text-primary font-medium"
+              >
                 {stats.nothingNew ? "Dismiss" : "View stories"}
               </button>
             </div>
@@ -520,9 +567,14 @@ function SyncOverlay({
                   Importing
                 </p>
                 <p className="text-xl font-semibold tabular-nums">
-                  {progress
-                    ? <><span className="text-primary">{progress.current}</span> of {progress.total}</>
-                    : "—"}
+                  {progress ? (
+                    <>
+                      <span className="text-primary">{progress.current}</span>{" "}
+                      of {progress.total}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </p>
               </div>
               {etaLabel && (
@@ -544,11 +596,18 @@ function SyncOverlay({
                   <motion.span
                     key={i}
                     className={`w-2 h-2 rounded-full block ${
-                      i < progress.current ? "bg-primary" : "bg-foreground/[0.18]"
+                      i < progress.current
+                        ? "bg-primary"
+                        : "bg-foreground/[0.18]"
                     }`}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: i * 0.04, type: "spring", stiffness: 400, damping: 20 }}
+                    transition={{
+                      delay: i * 0.04,
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 20,
+                    }}
                   />
                 ))}
               </div>
@@ -567,13 +626,23 @@ function SyncOverlay({
                   >
                     <motion.div
                       className="absolute inset-0 rounded-full"
-                      style={{ background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)" }}
+                      style={{
+                        background:
+                          "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)",
+                      }}
                       animate={{ x: ["-100%", "200%"] }}
-                      transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.4 }}
+                      transition={{
+                        duration: 1.6,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        repeatDelay: 0.4,
+                      }}
                     />
                   </motion.div>
                 </div>
-                <p className="text-[10px] text-muted-foreground tabular-nums">{pct}%</p>
+                <p className="text-[10px] text-muted-foreground tabular-nums">
+                  {pct}%
+                </p>
               </div>
             )}
 
@@ -595,6 +664,118 @@ function SyncOverlay({
           </div>
         )}
       </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Post-sync feedback toast
+// ---------------------------------------------------------------------------
+function FeedbackToast({ onDone }: { onDone: () => void }) {
+  const [phase, setPhase] = useState<"prompt" | "text" | "thanks">("prompt");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (rating?: "up" | "down", msg?: string) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await fetch("/api/feedback/digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: rating ?? null, message: msg ?? null }),
+      });
+    } catch {
+      /* fail silently */
+    }
+    setPhase("thanks");
+    setTimeout(onDone, 1800);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.97 }}
+      transition={{ type: "spring", damping: 28, stiffness: 380 }}
+      className="fixed bottom-5 right-5 z-50 w-[300px] rounded-2xl border border-border bg-card shadow-2xl shadow-black/20 px-4 py-4"
+    >
+      {phase === "thanks" ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center justify-center gap-2 py-1"
+        >
+          <CheckCheck className="w-4 h-4 text-emerald-500" />
+          <p className="text-sm font-medium">Thanks for the feedback</p>
+        </motion.div>
+      ) : phase === "text" ? (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+            Tell us more
+          </p>
+          <textarea
+            autoFocus
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="What could be better?"
+            rows={3}
+            className="w-full rounded-xl bg-secondary/50 border border-border/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:border-primary/60"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => submit(undefined, message)}
+              disabled={!message.trim() || submitting}
+              className="flex-1 h-8 rounded-lg bg-primary text-white text-xs font-semibold disabled:opacity-40 hover:brightness-110 transition-all"
+            >
+              Send
+            </button>
+            <button
+              onClick={onDone}
+              className="h-8 px-3 rounded-lg text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-semibold leading-snug">
+              How's your digest looking?
+            </p>
+            <button
+              onClick={onDone}
+              className="text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-0.5 flex-shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => submit("up")}
+              className="flex-1 h-9 rounded-xl bg-secondary/60 hover:bg-emerald-500/15 hover:text-emerald-500 border border-border/50 hover:border-emerald-500/30 text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+            >
+              <ThumbsUp className="w-3.5 h-3.5" />
+              Loving it
+            </button>
+            <button
+              onClick={() => submit("down")}
+              className="flex-1 h-9 rounded-xl bg-secondary/60 hover:bg-red-500/15 hover:text-red-400 border border-border/50 hover:border-red-500/30 text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+            >
+              <ThumbsDown className="w-3.5 h-3.5" />
+              Needs work
+            </button>
+          </div>
+          <button
+            onClick={() => setPhase("text")}
+            className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors text-center flex items-center justify-center gap-1.5"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            Say more...
+          </button>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -631,7 +812,9 @@ function NewsletterSelectionModal({
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, []);
 
   // Split into main vs flagged (auto-flagged minus user-unflagged)
@@ -981,9 +1164,13 @@ function MetricTile({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-2xl font-bold leading-none tracking-tight">{value}</p>
+        <p className="text-2xl font-bold leading-none tracking-tight">
+          {value}
+        </p>
         <p className="text-sm text-muted-foreground mt-1">{label}</p>
-        <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">{sub ?? " "}</p>
+        <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">
+          {sub ?? " "}
+        </p>
       </div>
     </div>
   );
@@ -1125,7 +1312,8 @@ function groupSummariesBySource(summaries: Summary[]): SourceGroup[] {
     const existing = map.get(key);
     if (existing) {
       existing.articles.push(s);
-      if (s.created_at > existing.latestDate) existing.latestDate = s.created_at;
+      if (s.created_at > existing.latestDate)
+        existing.latestDate = s.created_at;
       const cat = s.category || "Other";
       if (!existing.categories.includes(cat)) existing.categories.push(cat);
     } else {
@@ -1140,7 +1328,9 @@ function groupSummariesBySource(summaries: Summary[]): SourceGroup[] {
     }
   }
   // Sort most-recent edition first
-  return Array.from(map.values()).sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
+  return Array.from(map.values()).sort((a, b) =>
+    b.date > a.date ? 1 : b.date < a.date ? -1 : 0,
+  );
 }
 
 function NewsletterSourceCard({
@@ -1162,7 +1352,9 @@ function NewsletterSourceCard({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold truncate">{group.senderName}</p>
           <p className="text-xs text-muted-foreground/60 mt-0.5">
-            {group.articles.length} article{group.articles.length !== 1 ? "s" : ""} · {timeAgo(group.latestDate)}
+            {group.articles.length} article
+            {group.articles.length !== 1 ? "s" : ""} ·{" "}
+            {timeAgo(group.latestDate)}
           </p>
         </div>
         <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
@@ -1230,7 +1422,9 @@ function SourcePanel({
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, []);
 
   return (
@@ -1356,11 +1550,18 @@ function NewsletterCard({
         </span>
         <div className="flex items-center gap-0.5">
           <button
-            onClick={(e) => { e.stopPropagation(); onToggleRead(summary.id); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleRead(summary.id);
+            }}
             title={isRead ? "Mark as unread" : "Mark as read"}
             className={`p-1 rounded transition-colors ${isRead ? "text-muted-foreground/60 hover:text-muted-foreground" : "text-primary/70 hover:text-primary"}`}
           >
-            {isRead ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {isRead ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Eye className="w-3.5 h-3.5" />
+            )}
           </button>
           <button
             onClick={() => onBlock(summary.id)}
@@ -1374,7 +1575,11 @@ function NewsletterCard({
             className={`p-1 rounded flex-shrink-0 transition-colors ${isBookmarked ? "text-amber-400 hover:text-amber-300" : "text-muted-foreground/60 hover:text-muted-foreground"}`}
             aria-label={isBookmarked ? "Remove bookmark" : "Bookmark"}
           >
-            {isBookmarked ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+            {isBookmarked ? (
+              <BookmarkCheck className="w-3.5 h-3.5" />
+            ) : (
+              <Bookmark className="w-3.5 h-3.5" />
+            )}
           </button>
         </div>
       </div>
@@ -1410,27 +1615,50 @@ function NewsletterCard({
       {/* Action icons below title — LinkedIn, X, share */}
       <div className="px-4 sm:px-5 pb-3 flex items-center gap-0.5 justify-end">
         <button
-          onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "linkedin"); }}
-          title={posts.linkedin || summary.linkedin_post ? "LinkedIn post ready" : "Generate LinkedIn post"}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isExpanded) onToggleExpand(summary.id);
+            onGenerate(summary.id, "linkedin");
+          }}
+          title={
+            posts.linkedin || summary.linkedin_post
+              ? "LinkedIn post ready"
+              : "Generate LinkedIn post"
+          }
           className={`p-1 rounded transition-colors ${posts.linkedin || summary.linkedin_post ? "text-[#0A66C2]" : "text-muted-foreground/60 hover:text-[#0A66C2]/70"}`}
         >
           <Linkedin className="w-3.5 h-3.5" />
         </button>
 
         <button
-          onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "twitter"); }}
-          title={posts.twitter || summary.twitter_post ? "X post ready" : "Generate X post"}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isExpanded) onToggleExpand(summary.id);
+            onGenerate(summary.id, "twitter");
+          }}
+          title={
+            posts.twitter || summary.twitter_post
+              ? "X post ready"
+              : "Generate X post"
+          }
           className={`p-1 rounded transition-colors ${posts.twitter || summary.twitter_post ? "text-foreground/70" : "text-muted-foreground/60 hover:text-foreground/80"}`}
         >
           <XIcon className="w-3.5 h-3.5" />
         </button>
 
         <button
-          onClick={(e) => { e.stopPropagation(); onShare(summary.id); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onShare(summary.id);
+          }}
           title="Copy share link"
           className={`p-1 rounded transition-colors ${copying === `share-${summary.id}` ? "text-primary" : "text-muted-foreground/60 hover:text-primary/80"}`}
         >
-          {copying === `share-${summary.id}` ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+          {copying === `share-${summary.id}` ? (
+            <CheckCircle2 className="w-3.5 h-3.5" />
+          ) : (
+            <Share2 className="w-3.5 h-3.5" />
+          )}
         </button>
       </div>
 
@@ -1480,7 +1708,9 @@ function NewsletterCard({
                 )}
                 <button
                   onClick={() => onFlag(summary.id)}
-                  title={isFlagged ? "Flagged as inaccurate" : "Flag as inaccurate"}
+                  title={
+                    isFlagged ? "Flagged as inaccurate" : "Flag as inaccurate"
+                  }
                   className={`inline-flex items-center gap-1 text-xs transition-colors ${isFlagged ? "text-red-500" : "text-muted-foreground/70 hover:text-red-600"}`}
                 >
                   <ThumbsDown className="w-3 h-3" />
@@ -1564,6 +1794,7 @@ export default function Dashboard() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   // ── Scan / selection modal state ──────────────────────────────────────────
   const [scanResult, setScanResult] = useState<EmailPreview[] | null>(null);
@@ -1593,7 +1824,9 @@ export default function Dashboard() {
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [digestState, setDigestState] = useState<"idle" | "loading" | "sent" | "empty" | "error">("idle");
+  const [digestState, setDigestState] = useState<
+    "idle" | "loading" | "sent" | "empty" | "error"
+  >("idle");
   const [page, setPage] = useState(1);
   const PER_PAGE = 20;
 
@@ -1625,7 +1858,13 @@ export default function Dashboard() {
       new Set(summaries.filter((s) => s.is_bookmarked).map((s) => s.id)),
     );
     setRead(new Set(summaries.filter((s) => s.is_read).map((s) => s.id)));
-    setFlagged(new Set(summaries.filter((s) => (s as {is_flagged?: boolean}).is_flagged).map((s) => s.id)));
+    setFlagged(
+      new Set(
+        summaries
+          .filter((s) => (s as { is_flagged?: boolean }).is_flagged)
+          .map((s) => s.id),
+      ),
+    );
   }, [summaries]);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
@@ -1683,7 +1922,10 @@ export default function Dashboard() {
     setSyncStats(null);
 
     try {
-      const res = await fetch("/api/scan", { method: "POST", signal: controller.signal });
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        signal: controller.signal,
+      });
       const data = await readJsonResponse<ScanResponse>(res);
 
       if (!res.ok) {
@@ -1692,7 +1934,9 @@ export default function Dashboard() {
       }
 
       if (!data) {
-        setSyncError("Scan failed because the server returned an empty response.");
+        setSyncError(
+          "Scan failed because the server returned an empty response.",
+        );
         return;
       }
 
@@ -1799,17 +2043,21 @@ export default function Dashboard() {
                 title: data.title,
               });
             } else if (data.type === "complete") {
+              const processedCount = data.processedCount ?? 0;
               setSyncStats({
-                processedCount: data.processedCount ?? 0,
+                processedCount,
                 skippedCount: data.skippedCount ?? 0,
                 deletedCount: data.deletedCount ?? 0,
               });
               ph?.capture("newsletter_synced", {
-                count: data.processedCount ?? 0,
+                count: processedCount,
                 skipped: data.skippedCount ?? 0,
               });
               setSyncProgress(null);
               await fetchSummaries();
+              if (processedCount > 0) {
+                setTimeout(() => setShowFeedback(true), 3000);
+              }
             } else if (data.type === "error") {
               setSyncError(data.message);
             }
@@ -1880,7 +2128,10 @@ export default function Dashboard() {
         opening ? next.add(id) : next.delete(id);
         if (opening) {
           const s = summaries.find((x) => x.id === id);
-          ph?.capture("article_expanded", { category: s?.category, source: s?.source_email });
+          ph?.capture("article_expanded", {
+            category: s?.category,
+            source: s?.source_email,
+          });
         }
         return next;
       });
@@ -1910,23 +2161,29 @@ export default function Dashboard() {
     });
   }, []);
 
-  const handleToggleBookmark = useCallback((id: string) => {
-    setBookmarked((prev) => {
-      const next = new Set(prev);
-      const newVal = !next.has(id);
-      newVal ? next.add(id) : next.delete(id);
-      if (newVal) {
-        const s = summaries.find((x) => x.id === id);
-        ph?.capture("article_bookmarked", { source: s?.source_email, category: s?.category });
-      }
-      fetch("/api/update-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, is_bookmarked: newVal }),
-      }).catch(() => {});
-      return next;
-    });
-  }, [summaries, ph]);
+  const handleToggleBookmark = useCallback(
+    (id: string) => {
+      setBookmarked((prev) => {
+        const next = new Set(prev);
+        const newVal = !next.has(id);
+        newVal ? next.add(id) : next.delete(id);
+        if (newVal) {
+          const s = summaries.find((x) => x.id === id);
+          ph?.capture("article_bookmarked", {
+            source: s?.source_email,
+            category: s?.category,
+          });
+        }
+        fetch("/api/update-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, is_bookmarked: newVal }),
+        }).catch(() => {});
+        return next;
+      });
+    },
+    [summaries, ph],
+  );
 
   const handleGenerate = async (summaryId: string, platform: Platform) => {
     const key = `${summaryId}-${platform}`;
@@ -1944,7 +2201,10 @@ export default function Dashboard() {
           [summaryId]: { ...prev[summaryId], [platform]: data.post },
         }));
         const s = summaries.find((x) => x.id === summaryId);
-        ph?.capture("social_post_generated", { platform, source: s?.source_email });
+        ph?.capture("social_post_generated", {
+          platform,
+          source: s?.source_email,
+        });
       }
     } catch {
       /* ignore */
@@ -1973,28 +2233,34 @@ export default function Dashboard() {
     }
   };
 
-  const handleShare = useCallback((id: string) => {
-    const url = `${window.location.origin}/share/${id}`;
-    navigator.clipboard.writeText(url).catch(() => {});
-    setCopying(`share-${id}`);
-    setTimeout(() => setCopying(null), 2000);
-    ph?.capture("article_shared");
-  }, [ph]);
+  const handleShare = useCallback(
+    (id: string) => {
+      const url = `${window.location.origin}/share/${id}`;
+      navigator.clipboard.writeText(url).catch(() => {});
+      setCopying(`share-${id}`);
+      setTimeout(() => setCopying(null), 2000);
+      ph?.capture("article_shared");
+    },
+    [ph],
+  );
 
-  const handleFlag = useCallback((id: string) => {
-    setFlagged((prev) => {
-      const next = new Set(prev);
-      const flagging = !next.has(id);
-      flagging ? next.add(id) : next.delete(id);
-      if (flagging) ph?.capture("article_flagged");
-      fetch("/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summaryId: id, reason: "inaccurate" }),
-      }).catch(() => {});
-      return next;
-    });
-  }, [ph]);
+  const handleFlag = useCallback(
+    (id: string) => {
+      setFlagged((prev) => {
+        const next = new Set(prev);
+        const flagging = !next.has(id);
+        flagging ? next.add(id) : next.delete(id);
+        if (flagging) ph?.capture("article_flagged");
+        fetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ summaryId: id, reason: "inaccurate" }),
+        }).catch(() => {});
+        return next;
+      });
+    },
+    [ph],
+  );
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const uniqueSources = useMemo(
@@ -2066,7 +2332,18 @@ export default function Dashboard() {
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
     });
-  }, [summaries, searchQuery, activeCategory, activeSource, dateFilter, bookmarkedOnly, unreadOnly, sortBy, bookmarked, read]);
+  }, [
+    summaries,
+    searchQuery,
+    activeCategory,
+    activeSource,
+    dateFilter,
+    bookmarkedOnly,
+    unreadOnly,
+    sortBy,
+    bookmarked,
+    read,
+  ]);
 
   const sourceGroups = useMemo(
     () => groupSummariesBySource(filteredSummaries),
@@ -2162,9 +2439,21 @@ export default function Dashboard() {
                 setSyncStats(null);
                 setSyncError(null);
               }}
-              onCancel={() => { scanAbortRef.current?.abort(); }}
+              onCancel={() => {
+                scanAbortRef.current?.abort();
+              }}
             />
           )}
+      </AnimatePresence>
+
+      {/* ── Feedback toast ─────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showFeedback && (
+          <FeedbackToast
+            key="feedback-toast"
+            onDone={() => setShowFeedback(false)}
+          />
+        )}
       </AnimatePresence>
 
       {/* ── Source panel ───────────────────────────────────────────────────── */}
@@ -2295,7 +2584,6 @@ export default function Dashboard() {
       {/* ── Dashboard (Gmail connected or loading) ────────────────────────── */}
       {gmailConnected !== false && (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 space-y-6">
-
           {/* ── Hero greeting ──────────────────────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -2306,7 +2594,11 @@ export default function Dashboard() {
             {/* subtle glow orb */}
             <div
               className="absolute -top-4 -left-8 w-72 h-40 rounded-full pointer-events-none"
-              style={{ background: "radial-gradient(ellipse at top left, hsl(var(--primary)/0.12), transparent 70%)", filter: "blur(32px)" }}
+              style={{
+                background:
+                  "radial-gradient(ellipse at top left, hsl(var(--primary)/0.12), transparent 70%)",
+                filter: "blur(32px)",
+              }}
               aria-hidden
             />
             <div>
@@ -2339,15 +2631,22 @@ export default function Dashboard() {
                     }`}
                   >
                     {digestState === "loading" ? (
-                      <><span className="w-3.5 h-3.5 rounded-full border border-current border-t-transparent animate-spin" /> Sending…</>
+                      <>
+                        <span className="w-3.5 h-3.5 rounded-full border border-current border-t-transparent animate-spin" />{" "}
+                        Sending…
+                      </>
                     ) : digestState === "sent" ? (
-                      <><CheckCircle2 className="w-3.5 h-3.5" /> Digest sent</>
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Digest sent
+                      </>
                     ) : digestState === "error" ? (
                       <>Failed — check console</>
                     ) : digestState === "empty" ? (
                       <>No articles today</>
                     ) : (
-                      <><Mail className="w-3.5 h-3.5" /> Send digest</>
+                      <>
+                        <Mail className="w-3.5 h-3.5" /> Send digest
+                      </>
                     )}
                   </button>
                 )}
@@ -2361,183 +2660,232 @@ export default function Dashboard() {
           </motion.div>
 
           {/* ── Metrics ────────────────────────────────────────────────────── */}
-          {summaries.length > 0 && <motion.div
-            className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-stretch"
-            initial="hidden"
-            animate="visible"
-            variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
-          >
-            {[
-              <MetricTile key="unread" label="Unread" value={unreadCount} icon={<MailOpen className="w-4 h-4 text-primary" />} sub={`of ${metrics.total} total`} />,
-              <MetricTile key="li" label="LinkedIn posts" value={metrics.liReady} icon={<Linkedin className="w-4 h-4 text-[#0A66C2]" />} sub="ready to publish" />,
-              <MetricTile key="x" label="X posts" value={metrics.twReady} icon={<XIcon className="w-4 h-4 text-foreground" />} sub="ready to publish" />,
-              <MetricTile key="sources" label="Unique sources" value={metrics.sources} icon={<Mail className="w-4 h-4 text-muted-foreground" />} />,
-              <MetricTile key="bm" label="Bookmarked" value={metrics.bookmarkedCount} icon={<Bookmark className="w-4 h-4 text-amber-400" />} />,
-            ].map((tile) => (
-              <motion.div
-                key={tile.key}
-                className="h-full"
-                variants={{
-                  hidden: { opacity: 0, y: 8 },
-                  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
-                }}
-              >
-                {tile}
-              </motion.div>
-            ))}
-          </motion.div>}
+          {summaries.length > 0 && (
+            <motion.div
+              className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-stretch"
+              initial="hidden"
+              animate="visible"
+              variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
+            >
+              {[
+                <MetricTile
+                  key="unread"
+                  label="Unread"
+                  value={unreadCount}
+                  icon={<MailOpen className="w-4 h-4 text-primary" />}
+                  sub={`of ${metrics.total} total`}
+                />,
+                <MetricTile
+                  key="li"
+                  label="LinkedIn posts"
+                  value={metrics.liReady}
+                  icon={<Linkedin className="w-4 h-4 text-[#0A66C2]" />}
+                  sub="ready to publish"
+                />,
+                <MetricTile
+                  key="x"
+                  label="X posts"
+                  value={metrics.twReady}
+                  icon={<XIcon className="w-4 h-4 text-foreground" />}
+                  sub="ready to publish"
+                />,
+                <MetricTile
+                  key="sources"
+                  label="Unique sources"
+                  value={metrics.sources}
+                  icon={<Mail className="w-4 h-4 text-muted-foreground" />}
+                />,
+                <MetricTile
+                  key="bm"
+                  label="Bookmarked"
+                  value={metrics.bookmarkedCount}
+                  icon={<Bookmark className="w-4 h-4 text-amber-400" />}
+                />,
+              ].map((tile) => (
+                <motion.div
+                  key={tile.key}
+                  className="h-full"
+                  variants={{
+                    hidden: { opacity: 0, y: 8 },
+                    visible: {
+                      opacity: 1,
+                      y: 0,
+                      transition: { duration: 0.3, ease: "easeOut" },
+                    },
+                  }}
+                >
+                  {tile}
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
 
           {/* ── Filters ────────────────────────────────────────────────────── */}
-          {summaries.length > 0 && <div className="space-y-1.5">
-            {/* Primary row: chips + icon controls */}
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1.5 overflow-x-auto flex-1 scrollbar-hide -mx-0.5 px-0.5 pb-0.5">
-                {CATEGORIES.map((cat) => {
-                  const isActive = activeCategory === cat;
-                  const count =
-                    cat === "All" ? summaries.length : (categoryCounts[cat] ?? 0);
-                  if (cat !== "All" && count === 0) return null;
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setActiveCategory(cat)}
-                      className={`flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
-                        isActive
-                          ? cat === "All"
-                            ? "bg-primary text-white border-primary"
-                            : `${getCategoryStyle(cat)} border opacity-100`
-                          : "bg-secondary/40 text-muted-foreground border-border hover:border-border/80 hover:text-foreground"
-                      }`}
-                    >
-                      {cat}
-                      <span className={`text-[10px] ${isActive ? "opacity-80" : "opacity-50"}`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Icon-only controls */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <button
-                  onClick={() => setUnreadOnly((v) => !v)}
-                  title="Unread only"
-                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                    unreadOnly
-                      ? "bg-primary/15 text-primary"
-                      : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
-                  }`}
-                >
-                  <MailOpen className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setBookmarkedOnly((v) => !v)}
-                  title="Bookmarked only"
-                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                    bookmarkedOnly
-                      ? "bg-amber-500/15 text-amber-400"
-                      : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
-                  }`}
-                >
-                  <Bookmark className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setShowAdvanced((v) => !v)}
-                  title="More filters"
-                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                    showAdvanced || activeSource !== "All" || dateFilter !== "7d" || sortBy !== "newest"
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
-                  }`}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                </button>
-                {hasActiveFilters && (
-                  <button
-                    onClick={clearFilters}
-                    title="Clear all filters"
-                    className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:bg-secondary transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Advanced row — collapsible */}
-            <AnimatePresence>
-              {showAdvanced && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.18, ease: "easeInOut" }}
-                  className="overflow-hidden"
-                >
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-                      <Input
-                        ref={searchRef}
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Search…"
-                        className="pl-6 pr-6 h-7 w-36 text-xs bg-secondary/30 border-border/60 focus-visible:ring-primary/40"
-                      />
-                      {searchInput && (
-                        <button
-                          onClick={() => setSearchInput("")}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          {summaries.length > 0 && (
+            <div className="space-y-1.5">
+              {/* Primary row: chips + icon controls */}
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1.5 overflow-x-auto flex-1 scrollbar-hide -mx-0.5 px-0.5 pb-0.5">
+                  {CATEGORIES.map((cat) => {
+                    const isActive = activeCategory === cat;
+                    const count =
+                      cat === "All"
+                        ? summaries.length
+                        : (categoryCounts[cat] ?? 0);
+                    if (cat !== "All" && count === 0) return null;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setActiveCategory(cat)}
+                        className={`flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                          isActive
+                            ? cat === "All"
+                              ? "bg-primary text-white border-primary"
+                              : `${getCategoryStyle(cat)} border opacity-100`
+                            : "bg-secondary/40 text-muted-foreground border-border hover:border-border/80 hover:text-foreground"
+                        }`}
+                      >
+                        {cat}
+                        <span
+                          className={`text-[10px] ${isActive ? "opacity-80" : "opacity-50"}`}
                         >
-                          <X className="w-3 h-3" />
-                        </button>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Icon-only controls */}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    onClick={() => setUnreadOnly((v) => !v)}
+                    title="Unread only"
+                    className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                      unreadOnly
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    <MailOpen className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setBookmarkedOnly((v) => !v)}
+                    title="Bookmarked only"
+                    className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                      bookmarkedOnly
+                        ? "bg-amber-500/15 text-amber-400"
+                        : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    <Bookmark className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setShowAdvanced((v) => !v)}
+                    title="More filters"
+                    className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                      showAdvanced ||
+                      activeSource !== "All" ||
+                      dateFilter !== "7d" ||
+                      sortBy !== "newest"
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground/50 hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                  </button>
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearFilters}
+                      title="Clear all filters"
+                      className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Advanced row — collapsible */}
+              <AnimatePresence>
+                {showAdvanced && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                        <Input
+                          ref={searchRef}
+                          value={searchInput}
+                          onChange={(e) => setSearchInput(e.target.value)}
+                          placeholder="Search…"
+                          className="pl-6 pr-6 h-7 w-36 text-xs bg-secondary/30 border-border/60 focus-visible:ring-primary/40"
+                        />
+                        {searchInput && (
+                          <button
+                            onClick={() => setSearchInput("")}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      <select
+                        value={activeSource}
+                        onChange={(e) => setActiveSource(e.target.value)}
+                        className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      >
+                        <option value="All">All sources</option>
+                        {uniqueSources.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={dateFilter}
+                        onChange={(e) =>
+                          setDateFilter(e.target.value as DateFilter)
+                        }
+                        className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      >
+                        <option value="7d">Last 7 days</option>
+                        <option value="all">All time</option>
+                      </select>
+
+                      <select
+                        value={sortBy}
+                        onChange={(e) =>
+                          setSortBy(e.target.value as SortOption)
+                        }
+                        className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      >
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="source">By source</option>
+                        <option value="category">By category</option>
+                      </select>
+
+                      {!loading && (
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {sourceGroups.length === uniqueSources.length
+                            ? `${uniqueSources.length} newsletter${uniqueSources.length !== 1 ? "s" : ""}`
+                            : `${sourceGroups.length} of ${uniqueSources.length} newsletters`}
+                        </span>
                       )}
                     </div>
-
-                    <select
-                      value={activeSource}
-                      onChange={(e) => setActiveSource(e.target.value)}
-                      className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    >
-                      <option value="All">All sources</option>
-                      {uniqueSources.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-                      className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    >
-                      <option value="7d">Last 7 days</option>
-                      <option value="all">All time</option>
-                    </select>
-
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as SortOption)}
-                      className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    >
-                      <option value="newest">Newest first</option>
-                      <option value="oldest">Oldest first</option>
-                      <option value="source">By source</option>
-                      <option value="category">By category</option>
-                    </select>
-
-                    {!loading && (
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {sourceGroups.length === uniqueSources.length
-                          ? `${uniqueSources.length} newsletter${uniqueSources.length !== 1 ? "s" : ""}`
-                          : `${sourceGroups.length} of ${uniqueSources.length} newsletters`}
-                      </span>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
           {/* ── Content ────────────────────────────────────────────────────── */}
           {loading ? (
@@ -2592,7 +2940,9 @@ export default function Dashboard() {
                 <div className="space-y-6">
                   {dateGroups.map((dateGroup) => {
                     const left = dateGroup.groups.filter((_, i) => i % 2 === 0);
-                    const right = dateGroup.groups.filter((_, i) => i % 2 !== 0);
+                    const right = dateGroup.groups.filter(
+                      (_, i) => i % 2 !== 0,
+                    );
                     return (
                       <div key={dateGroup.label} className="space-y-3">
                         {/* Date section header */}

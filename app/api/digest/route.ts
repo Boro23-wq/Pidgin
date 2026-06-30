@@ -16,7 +16,7 @@ function extractSenderName(from: string) {
   return m?.[1]?.trim().replace(/^["']|["']$/g, "") ?? from.split("@")[0];
 }
 
-function buildHtml(articles: Awaited<ReturnType<typeof getTodaysSummaries>>, userFirstName: string) {
+function buildHtml(articles: Awaited<ReturnType<typeof getTodaysSummaries>>, userFirstName: string, userId: string) {
   const dateStr = formatDate(new Date());
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -116,11 +116,32 @@ function buildHtml(articles: Awaited<ReturnType<typeof getTodaysSummaries>>, use
       ${sourcesHtml}
 
       <!-- CTA -->
-      <div style="margin-top:8px;margin-bottom:8px;">
+      <div style="margin-top:8px;margin-bottom:24px;">
         <a href="${APP_URL}/dashboard"
            style="display:inline-block;padding:12px 24px;background-color:${BRAND};color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:8px;">
           Bookmark &amp; generate social posts →
         </a>
+      </div>
+
+      <!-- Feedback -->
+      <div style="border-top:1px solid #f3f4f6;padding-top:20px;">
+        <p style="font-size:12px;color:#6b7280;margin:0 0 12px;">How was today's digest?</p>
+        <table cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding-right:8px;">
+              <a href="${APP_URL}/api/feedback/digest?rating=up&uid=${Buffer.from(userId).toString("base64url")}"
+                 style="display:inline-block;padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;font-weight:600;color:#374151;text-decoration:none;">
+                Loved it
+              </a>
+            </td>
+            <td>
+              <a href="${APP_URL}/api/feedback/digest?rating=down&uid=${Buffer.from(userId).toString("base64url")}"
+                 style="display:inline-block;padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;font-weight:600;color:#374151;text-decoration:none;">
+                Needs work
+              </a>
+            </td>
+          </tr>
+        </table>
       </div>
 
     </div>
@@ -151,7 +172,7 @@ export async function POST() {
     return NextResponse.json({ sent: false, reason: "No articles today" });
   }
 
-  const html = buildHtml(articles, user?.firstName ?? "");
+  const html = buildHtml(articles, user?.firstName ?? "", userId);
   const dateStr = formatDate(new Date());
 
   const { error } = await resend.emails.send({
