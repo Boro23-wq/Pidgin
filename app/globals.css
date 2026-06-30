@@ -31,23 +31,23 @@
   /* ── Dark mode ─────────────────────────────────────────────────────────── */
   .dark {
     --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 5% 9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 5% 9%;
-    --popover-foreground: 0 0% 98%;
+    --foreground: 0 0% 100%;
+    --card: 240 5% 13%;
+    --card-foreground: 0 0% 100%;
+    --popover: 240 5% 13%;
+    --popover-foreground: 0 0% 100%;
     --primary: 199 89% 48%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 4% 16%;
-    --secondary-foreground: 0 0% 92%;
-    --muted: 240 4% 16%;
-    --muted-foreground: 240 5% 64%;
+    --secondary: 240 4% 20%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 240 4% 20%;
+    --muted-foreground: 240 5% 72%;
     --accent: 199 89% 48%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 4% 24%;
-    --input: 240 4% 16%;
+    --border: 240 4% 36%;
+    --input: 240 4% 20%;
     --ring: 199 89% 48%;
     --radius: 0.375rem;
     --sidebar: 240 10% 3%;
@@ -94,6 +94,175 @@ html {
   display: none;
 }
 
+.pidgin-clerk-auth {
+  width: 100%;
+  max-width: 22.5rem;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+.pidgin-clerk-auth *,
+.pidgin-clerk-auth *::before,
+.pidgin-clerk-auth *::after {
+  box-sizing: border-box;
+}
+
+.pidgin-clerk-auth .cl-rootBox,
+.pidgin-clerk-auth .cl-cardBox {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.pidgin-clerk-auth .cl-cardBox {
+  margin-inline: auto !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.pidgin-clerk-auth .cl-card {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-inline: 4px !important;
+}
+
+.pidgin-clerk-auth .cl-socialButtonsBlockButton {
+  min-height: 52px !important;
+  height: 52px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: hsl(var(--secondary) / 0.45) !important;
+  box-shadow: inset 0 0 0 1px hsl(var(--border) / 0.45) !important;
+}
+
+.pidgin-clerk-auth [data-localization-key*="last"],
+.pidgin-clerk-auth [data-localization-key*="Last"],
+.pidgin-clerk-auth [data-localization-key*="used"],
+.pidgin-clerk-auth [class*="lastUsed"],
+.pidgin-clerk-auth [class*="LastUsed"],
+.pidgin-clerk-auth [class*="last-used"],
+.pidgin-clerk-auth [class*="lastAuthentication"],
+.pidgin-clerk-auth [class*="LastAuthentication"],
+.pidgin-clerk-auth .cl-socialButtonsBlockButton [style*="position: absolute"],
+.pidgin-clerk-auth .cl-socialButtonsBlockButton [style*="position:absolute"],
+.pidgin-clerk-auth .cl-socialButtonsBlockButton [class*="badge"],
+.pidgin-clerk-auth .cl-socialButtonsBlockButton [class*="Badge"],
+.pidgin-clerk-auth .cl-socialButtonsBlockButton [class*="identifier"],
+.pidgin-clerk-auth .cl-socialButtonsBlockButton [class*="Identifier"] {
+  display: none !important;
+}
+
+.pidgin-clerk-auth .cl-formFieldInput,
+.pidgin-clerk-auth .cl-input,
+.pidgin-clerk-auth input:not([class*="otpCodeField"]):not([class*="otp"]) {
+  min-height: 52px !important;
+  height: 52px !important;
+  border-radius: 10px !important;
+  background: hsl(var(--secondary) / 0.55) !important;
+  border-color: hsl(var(--border) / 0.7) !important;
+  font-size: 15px !important;
+  line-height: 1.2 !important;
+  padding-inline: 16px !important;
+  box-sizing: border-box !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* OTP code cell overrides */
+.pidgin-clerk-auth [class*="otpCodeField"] input,
+.pidgin-clerk-auth .cl-otpCodeFieldInput {
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 56px !important;
+  min-height: 56px !important;
+  padding-inline: 0 !important;
+  text-align: center !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  background: hsl(var(--secondary) / 0.45) !important;
+  border-color: hsl(var(--border) / 0.7) !important;
+  box-sizing: border-box !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Kill all outward focus rings/shadows on every element in the auth area */
+.pidgin-clerk-auth *:focus,
+.pidgin-clerk-auth *:focus-visible,
+.pidgin-clerk-auth *:focus-within {
+  outline: none !important;
+  outline-width: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Re-apply only the inset ring on the actual input — inset renders inside the border
+   so it's immune to any ancestor overflow:hidden clipping */
+.pidgin-clerk-auth input:focus,
+.pidgin-clerk-auth input:focus-visible {
+  border-color: hsl(var(--primary) / 0.9) !important;
+  box-shadow: inset 0 0 0 2px hsl(var(--primary) / 0.4) !important;
+}
+
+/* Identity preview — kill Clerk's default pink/accent border */
+.pidgin-clerk-auth .cl-identityPreview,
+.pidgin-clerk-auth [class*="identityPreview"] {
+  border-color: hsl(var(--border) / 0.55) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Footer branding box — transparent, subtle top divider */
+.pidgin-clerk-auth .cl-footer,
+.pidgin-clerk-auth [class*="__footer"],
+.pidgin-clerk-auth [class*="footer"] {
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid hsl(var(--border) / 0.25) !important;
+  margin-top: 1.5rem !important;
+  padding-top: 1rem !important;
+}
+
+.pidgin-clerk-auth .cl-formButtonPrimary {
+  min-height: 52px !important;
+  height: 52px !important;
+  border-radius: 12px !important;
+}
+
+@media (max-width: 640px) {
+  .pidgin-clerk-auth {
+    width: 100%;
+    max-width: 22.5rem;
+  }
+
+  .pidgin-clerk-auth .cl-rootBox,
+  .pidgin-clerk-auth .cl-cardBox {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .pidgin-clerk-auth .cl-headerTitle {
+    font-size: 30px !important;
+    line-height: 1.08 !important;
+  }
+
+  .pidgin-clerk-auth .cl-headerSubtitle {
+    font-size: 15px !important;
+    line-height: 1.55 !important;
+  }
+}
+
+@media (min-width: 640px) {
+  .pidgin-clerk-auth {
+    width: 100%;
+    max-width: 24rem;
+  }
+}
+
 /* ── Floating particle animation ─────────────────────────────────────────── */
 @keyframes particle-drift {
   0% {
@@ -134,4 +303,3 @@ html {
   pointer-events: none;
   z-index: 0;
 }
-
