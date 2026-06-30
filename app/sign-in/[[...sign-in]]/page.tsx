@@ -4,6 +4,7 @@ import { SignIn, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
+import { pidginClerkAppearance } from "@/lib/clerk-appearance";
 import { isInviteOnlyEnabled } from "@/lib/invite-only";
 
 export default function SignInPage() {
@@ -46,32 +47,19 @@ export default function SignInPage() {
         </div>
 
         <div className="flex-1 flex items-center justify-center px-6 py-10">
-          <SignIn
-            path="/sign-in"
-            routing="path"
-            signUpUrl={inviteOnly ? "/waitlist" : "/sign-up"}
-            waitlistUrl="/waitlist"
-            forceRedirectUrl="/dashboard"
-            signUpForceRedirectUrl={inviteOnly ? "/waitlist" : "/dashboard"}
-            transferable={!inviteOnly}
-            withSignUp={!inviteOnly}
-            appearance={{
-              elements: {
-                rootBox: "w-full max-w-sm",
-                cardBox: "w-full shadow-none border border-border/60 bg-card",
-                card: "bg-card text-foreground",
-                headerTitle: "text-foreground",
-                headerSubtitle: "text-muted-foreground",
-                socialButtonsBlockButton:
-                  "bg-secondary/40 border-border/60 text-foreground hover:bg-secondary/80",
-                formFieldInput:
-                  "bg-secondary/40 border-border/60 text-foreground",
-                formButtonPrimary:
-                  "bg-primary hover:bg-primary/90 text-primary-foreground",
-                footerActionLink: "text-primary",
-              },
-            }}
-          />
+          <div className="w-full max-w-[440px]">
+            <SignIn
+              path="/sign-in"
+              routing="path"
+              signUpUrl={inviteOnly ? "/waitlist" : "/sign-up"}
+              waitlistUrl="/waitlist"
+              forceRedirectUrl="/dashboard"
+              signUpForceRedirectUrl={inviteOnly ? "/waitlist" : "/dashboard"}
+              transferable={!inviteOnly}
+              withSignUp={!inviteOnly}
+              appearance={pidginClerkAppearance}
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -199,7 +199,7 @@ export default function WaitlistPage() {
                   Early alpha · Limited spots
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight mb-4">
-                  Stop pretending you&apos;ll read
+                  Turn your newsletters into
                   <br />
                   <span
                     className="bg-clip-text text-transparent"
@@ -208,7 +208,7 @@ export default function WaitlistPage() {
                         "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
                     }}
                   >
-                    all those newsletters.
+                    a daily briefing.
                   </span>
                 </h1>
                 <p className="text-muted-foreground text-base leading-relaxed max-w-lg">

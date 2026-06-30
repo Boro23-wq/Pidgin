@@ -928,7 +928,7 @@ function LandingPage() {
             variants={fadeUp}
             className="text-5xl sm:text-6xl lg:text-[5.5rem] font-bold tracking-tight leading-[1.07] mb-5"
           >
-            You subscribed to
+            Your newsletters,
             <br />
             <span
               className="bg-clip-text text-transparent"
@@ -937,10 +937,10 @@ function LandingPage() {
                   "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
               }}
             >
-              15 newsletters.
+              distilled daily.
             </span>
             <br />
-            You&apos;ve read 2.
+            Ready when you are.
           </motion.h1>
 
           <motion.p
