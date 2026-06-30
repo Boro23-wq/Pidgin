@@ -118,15 +118,15 @@ const CATEGORIES = [
 ] as const;
 
 const CAT_STYLE: Record<string, string> = {
-  "AI & ML": "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
-  Tech: "bg-blue-500/15 text-blue-400 border-blue-500/25",
-  Science: "bg-cyan-500/15 text-cyan-400 border-cyan-500/25",
-  Business: "bg-amber-500/15 text-amber-400 border-amber-500/25",
-  Finance: "bg-green-500/15 text-green-400 border-green-500/25",
-  Politics: "bg-red-500/15 text-red-400 border-red-500/25",
-  Health: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  Startups: "bg-purple-500/15 text-purple-400 border-purple-500/25",
-  Other: "bg-zinc-500/15 text-zinc-400 border-zinc-500/25",
+  "AI & ML": "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/35 dark:border-indigo-500/25",
+  Tech: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/35 dark:border-blue-500/25",
+  Science: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/35 dark:border-cyan-500/25",
+  Business: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/35 dark:border-amber-500/25",
+  Finance: "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/35 dark:border-green-500/25",
+  Politics: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/35 dark:border-red-500/25",
+  Health: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/35 dark:border-emerald-500/25",
+  Startups: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/35 dark:border-purple-500/25",
+  Other: "bg-zinc-500/15 text-zinc-500 dark:text-zinc-400 border-zinc-500/35 dark:border-zinc-500/25",
 };
 
 // ---------------------------------------------------------------------------
@@ -468,7 +468,7 @@ function SyncOverlay({
               {onCancel && (
                 <button
                   onClick={onCancel}
-                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors flex-shrink-0"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
                 >
                   Cancel
                 </button>
@@ -499,7 +499,7 @@ function SyncOverlay({
               <AnimatePresence mode="wait">
                 <motion.p
                   key={sentenceIdx}
-                  className="text-xs text-muted-foreground/60 leading-relaxed"
+                  className="text-xs text-muted-foreground leading-relaxed"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
@@ -516,7 +516,7 @@ function SyncOverlay({
             {/* header */}
             <div className="flex items-start justify-between gap-2">
               <div className="space-y-0.5">
-                <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest font-medium">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-widest font-medium">
                   Importing
                 </p>
                 <p className="text-xl font-semibold tabular-nums">
@@ -530,7 +530,7 @@ function SyncOverlay({
                   key={etaLabel}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-[10px] text-muted-foreground/40 mt-1 tabular-nums flex-shrink-0"
+                  className="text-[10px] text-muted-foreground mt-1 tabular-nums flex-shrink-0"
                 >
                   {etaLabel}
                 </motion.span>
@@ -544,7 +544,7 @@ function SyncOverlay({
                   <motion.span
                     key={i}
                     className={`w-2 h-2 rounded-full block ${
-                      i < progress.current ? "bg-primary" : "bg-foreground/[0.08]"
+                      i < progress.current ? "bg-primary" : "bg-foreground/[0.18]"
                     }`}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -557,7 +557,7 @@ function SyncOverlay({
             {/* progress bar */}
             {progress && (
               <div className="space-y-2">
-                <div className="h-[3px] w-full bg-foreground/[0.08] rounded-full overflow-hidden">
+                <div className="h-[3px] w-full bg-foreground/[0.18] rounded-full overflow-hidden">
                   <motion.div
                     className="h-full rounded-full relative overflow-hidden"
                     style={{ background: "hsl(var(--primary))" }}
@@ -573,7 +573,7 @@ function SyncOverlay({
                     />
                   </motion.div>
                 </div>
-                <p className="text-[10px] text-muted-foreground/30 tabular-nums">{pct}%</p>
+                <p className="text-[10px] text-muted-foreground tabular-nums">{pct}%</p>
               </div>
             )}
 
@@ -582,7 +582,7 @@ function SyncOverlay({
               <AnimatePresence mode="wait">
                 <motion.p
                   key={progress.title}
-                  className="text-xs text-muted-foreground/50 leading-relaxed"
+                  className="text-xs text-muted-foreground leading-relaxed"
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
@@ -628,6 +628,11 @@ function NewsletterSelectionModal({
     "newsletters",
   );
   const [unflagged, setUnflagged] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
 
   // Split into main vs flagged (auto-flagged minus user-unflagged)
   const autoFlaggedIds = useMemo(() => {
@@ -977,8 +982,8 @@ function MetricTile({
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-2xl font-bold leading-none tracking-tight">{value}</p>
-        <p className="text-xs text-muted-foreground mt-1">{label}</p>
-        <p className="text-[10px] text-muted-foreground/40 mt-0.5 truncate">{sub ?? " "}</p>
+        <p className="text-sm text-muted-foreground mt-1">{label}</p>
+        <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">{sub ?? " "}</p>
       </div>
     </div>
   );
@@ -1222,6 +1227,12 @@ function SourcePanel({
 }) {
   const articles = summaries.filter((s) => s.source_email === sourceEmail);
   const senderName = extractSenderName(sourceEmail);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   return (
     <>
       <motion.div
@@ -1336,90 +1347,52 @@ function NewsletterCard({
           : `rounded-xl border ${isExpanded ? "border-border/80 ring-1 ring-primary/20" : "border-border hover:border-primary/20 min-h-24"}`
       } ${!isRead && !isExpanded && !noOuterBorder ? "border-l-[3px] border-l-primary/60" : ""}`}
     >
-      <div className="px-4 sm:px-5 pt-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-          <span
-            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${catStyle}`}
-          >
-            {cat}
-          </span>
-          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-            <Mail className="w-3 h-3" />
-            {senderName}
-          </span>
-          <span className="text-[10px] text-muted-foreground/40">
-            {timeAgo(summary.created_at)}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-0.5 self-end sm:self-auto flex-shrink-0">
+      {/* Row 1: badge + quick action icons */}
+      <div className="px-4 sm:px-5 pt-3.5 flex items-center justify-between gap-2">
+        <span
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${catStyle}`}
+        >
+          {cat}
+        </span>
+        <div className="flex items-center gap-0.5">
           <button
             onClick={(e) => { e.stopPropagation(); onToggleRead(summary.id); }}
             title={isRead ? "Mark as unread" : "Mark as read"}
-            className={`p-1 rounded transition-colors ${
-              isRead
-                ? "text-muted-foreground/25 hover:text-muted-foreground"
-                : "text-primary/60 hover:text-primary"
-            }`}
+            className={`p-1 rounded transition-colors ${isRead ? "text-muted-foreground/60 hover:text-muted-foreground" : "text-primary/70 hover:text-primary"}`}
           >
             {isRead ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
-
           <button
             onClick={() => onBlock(summary.id)}
             title="Block this sender"
-            className="p-1 rounded transition-colors text-muted-foreground/25 hover:text-red-400"
+            className="p-1 rounded transition-colors text-muted-foreground/60 hover:text-red-400"
           >
             <Ban className="w-3.5 h-3.5" />
           </button>
-
           <button
             onClick={() => onToggleBookmark(summary.id)}
-            className={`p-1 rounded flex-shrink-0 transition-colors ${
-              isBookmarked
-                ? "text-amber-400 hover:text-amber-300"
-                : "text-muted-foreground/30 hover:text-muted-foreground"
-            }`}
+            className={`p-1 rounded flex-shrink-0 transition-colors ${isBookmarked ? "text-amber-400 hover:text-amber-300" : "text-muted-foreground/60 hover:text-muted-foreground"}`}
             aria-label={isBookmarked ? "Remove bookmark" : "Bookmark"}
           >
-            {isBookmarked ? (
-              <BookmarkCheck className="w-3.5 h-3.5" />
-            ) : (
-              <Bookmark className="w-3.5 h-3.5" />
-            )}
-          </button>
-
-          {/* Quick: generate LinkedIn post */}
-          <button
-            onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "linkedin"); }}
-            title={posts.linkedin || summary.linkedin_post ? "LinkedIn post ready" : "Generate LinkedIn post"}
-            className={`p-1 rounded transition-colors ${posts.linkedin || summary.linkedin_post ? "text-[#0A66C2]" : "text-muted-foreground/25 hover:text-[#0A66C2]/70"}`}
-          >
-            <Linkedin className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Quick: generate X post */}
-          <button
-            onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "twitter"); }}
-            title={posts.twitter || summary.twitter_post ? "X post ready" : "Generate X post"}
-            className={`p-1 rounded transition-colors ${posts.twitter || summary.twitter_post ? "text-foreground/70" : "text-muted-foreground/25 hover:text-foreground/50"}`}
-          >
-            <XIcon className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Share */}
-          <button
-            onClick={(e) => { e.stopPropagation(); onShare(summary.id); }}
-            title="Copy share link"
-            className={`p-1 rounded transition-colors ${copying === `share-${summary.id}` ? "text-primary" : "text-muted-foreground/25 hover:text-primary/70"}`}
-          >
-            {copying === `share-${summary.id}` ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+            {isBookmarked ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
 
+      {/* Row 2: sender · timestamp */}
+      <div className="px-4 sm:px-5 pt-2.5 flex items-center justify-between">
+        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Mail className="w-3 h-3" />
+          {senderName}
+        </span>
+        <span className="text-[10px] text-muted-foreground/40">
+          {timeAgo(summary.created_at)}
+        </span>
+      </div>
+
+      {/* Title */}
       <button
-        className="w-full text-left px-4 sm:px-5 pt-2 pb-3.5 flex items-start justify-between gap-3 group"
+        className="w-full text-left px-4 sm:px-5 pt-2 pb-2 flex items-start justify-between gap-3 group"
         onClick={() => onToggleExpand(summary.id)}
       >
         <h2 className="text-sm font-semibold leading-snug text-foreground group-hover:text-primary/90 transition-colors">
@@ -1434,11 +1407,38 @@ function NewsletterCard({
         </span>
       </button>
 
+      {/* Action icons below title — LinkedIn, X, share */}
+      <div className="px-4 sm:px-5 pb-3 flex items-center gap-0.5 justify-end">
+        <button
+          onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "linkedin"); }}
+          title={posts.linkedin || summary.linkedin_post ? "LinkedIn post ready" : "Generate LinkedIn post"}
+          className={`p-1 rounded transition-colors ${posts.linkedin || summary.linkedin_post ? "text-[#0A66C2]" : "text-muted-foreground/60 hover:text-[#0A66C2]/70"}`}
+        >
+          <Linkedin className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={(e) => { e.stopPropagation(); if (!isExpanded) onToggleExpand(summary.id); onGenerate(summary.id, "twitter"); }}
+          title={posts.twitter || summary.twitter_post ? "X post ready" : "Generate X post"}
+          className={`p-1 rounded transition-colors ${posts.twitter || summary.twitter_post ? "text-foreground/70" : "text-muted-foreground/60 hover:text-foreground/80"}`}
+        >
+          <XIcon className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={(e) => { e.stopPropagation(); onShare(summary.id); }}
+          title="Copy share link"
+          className={`p-1 rounded transition-colors ${copying === `share-${summary.id}` ? "text-primary" : "text-muted-foreground/60 hover:text-primary/80"}`}
+        >
+          {copying === `share-${summary.id}` ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
       {isExpanded && (
         <div className="border-t border-border">
           <div className="px-4 sm:px-5 py-4 space-y-4">
             {summary.summary && (
-              <p className="text-sm text-foreground/80 leading-relaxed">
+              <p className="text-sm text-foreground leading-relaxed">
                 {summary.summary}
               </p>
             )}
@@ -1457,13 +1457,13 @@ function NewsletterCard({
             )}
 
             {summary.simple_explanation && (
-              <p className="text-xs text-muted-foreground/70 leading-relaxed border-l-2 border-border pl-3">
+              <p className="text-xs text-foreground/70 leading-relaxed border-l-2 border-border pl-3">
                 {summary.simple_explanation}
               </p>
             )}
 
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <p className="text-[10px] text-muted-foreground/50">
+              <p className="text-[10px] text-muted-foreground">
                 {formatDate(summary.created_at)}
               </p>
               <div className="flex items-center gap-3">
@@ -1472,7 +1472,7 @@ function NewsletterCard({
                     href={sourceHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
                   >
                     Read article
                     <ExternalLink className="w-3 h-3" />
@@ -1481,7 +1481,7 @@ function NewsletterCard({
                 <button
                   onClick={() => onFlag(summary.id)}
                   title={isFlagged ? "Flagged as inaccurate" : "Flag as inaccurate"}
-                  className={`inline-flex items-center gap-1 text-xs transition-colors ${isFlagged ? "text-red-400" : "text-muted-foreground/30 hover:text-red-400/70"}`}
+                  className={`inline-flex items-center gap-1 text-xs transition-colors ${isFlagged ? "text-red-500" : "text-muted-foreground/70 hover:text-red-600"}`}
                 >
                   <ThumbsDown className="w-3 h-3" />
                   {isFlagged ? "Flagged" : "Inaccurate?"}

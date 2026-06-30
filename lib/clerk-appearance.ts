@@ -39,9 +39,9 @@ export const pidginClerkAppearance = {
     footerActionText: "!text-muted-foreground",
     footerActionLink: "!text-primary hover:!text-sky-300 !font-semibold",
     identityPreview:
-      "!rounded-[12px] !border !border-border/60 !bg-secondary/25 !text-foreground !shadow-none !outline-none",
+      "!mt-5 !rounded-[12px] !border !border-border/60 !bg-secondary/25 !text-foreground !shadow-none !outline-none",
     identityPreviewText: "!text-muted-foreground !text-sm",
-    identityPreviewEditButton: "!text-primary hover:!text-sky-300",
+    identityPreviewEditButton: "!text-primary hover:!text-sky-300 !w-9 !h-9 !m-1.5 !flex !items-center !justify-center !rounded-lg hover:!bg-secondary/60",
     alert:
       "!rounded-[12px] !border !border-red-500/30 !bg-red-500/10 !text-red-200",
     alertText: "!text-red-200",
@@ -52,7 +52,7 @@ export const pidginClerkAppearance = {
       "!w-11 !h-14 !rounded-[10px] !border !border-border/70 !bg-secondary/45 !text-foreground !text-center !text-xl !font-bold",
     alternativeMethods: "!mt-1",
     alternativeMethodsBlockButton:
-      "!h-11 !rounded-xl !border !border-border/60 !bg-transparent !text-muted-foreground hover:!text-foreground hover:!bg-secondary/40 !text-sm !font-medium transition-colors",
-    alternativeMethodsBlockButtonText: "!text-sm",
+      "!h-[52px] !rounded-xl !border-0 !bg-secondary/45 !text-foreground !font-semibold !shadow-[inset_0_0_0_1px_hsl(var(--border)/0.45)] hover:!bg-secondary/70 transition-colors",
+    alternativeMethodsBlockButtonText: "!text-foreground !font-semibold",
   },
 };

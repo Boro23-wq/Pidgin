@@ -9,7 +9,7 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const summaries = await getAllSummaries(userId, 30);
+    const summaries = await getAllSummaries(userId, 500);
     return NextResponse.json(summaries, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

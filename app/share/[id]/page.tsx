@@ -3,15 +3,15 @@ import { supabase } from "@/lib/supabase";
 import type { Metadata } from "next";
 
 const CAT_STYLE: Record<string, string> = {
-  "AI & ML": "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
-  Tech: "bg-blue-500/15 text-blue-400 border-blue-500/25",
-  Science: "bg-cyan-500/15 text-cyan-400 border-cyan-500/25",
-  Business: "bg-amber-500/15 text-amber-400 border-amber-500/25",
-  Finance: "bg-green-500/15 text-green-400 border-green-500/25",
-  Politics: "bg-red-500/15 text-red-400 border-red-500/25",
-  Health: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  Startups: "bg-purple-500/15 text-purple-400 border-purple-500/25",
-  Other: "bg-zinc-500/15 text-zinc-400 border-zinc-500/25",
+  "AI & ML": "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/35 dark:border-indigo-500/25",
+  Tech: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/35 dark:border-blue-500/25",
+  Science: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/35 dark:border-cyan-500/25",
+  Business: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/35 dark:border-amber-500/25",
+  Finance: "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/35 dark:border-green-500/25",
+  Politics: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/35 dark:border-red-500/25",
+  Health: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/35 dark:border-emerald-500/25",
+  Startups: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/35 dark:border-purple-500/25",
+  Other: "bg-zinc-500/15 text-zinc-500 dark:text-zinc-400 border-zinc-500/35 dark:border-zinc-500/25",
 };
 
 async function getSummary(id: string) {
