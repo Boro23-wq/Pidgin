@@ -1,11 +1,6 @@
 export const pidginClerkAppearance = {
   variables: {
     colorPrimary: "hsl(199 89% 48%)",
-    colorText: "hsl(0 0% 98%)",
-    colorTextSecondary: "hsl(240 5% 72%)",
-    colorBackground: "hsl(240 10% 3.9%)",
-    colorInputBackground: "hsl(240 4% 20%)",
-    colorInputText: "hsl(0 0% 98%)",
     colorDanger: "hsl(0 84% 60%)",
     borderRadius: "0.875rem",
   },
