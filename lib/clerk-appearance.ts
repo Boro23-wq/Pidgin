@@ -11,7 +11,7 @@ export const pidginClerkAppearance = {
     card: "!w-full !bg-transparent !border-0 !shadow-none !p-0 text-foreground",
     header: "!mb-7",
     headerTitle:
-      "!text-white !text-[30px] sm:!text-[34px] !leading-[1.08] !font-bold !tracking-normal",
+      "!text-foreground !text-[30px] sm:!text-[34px] !leading-[1.08] !font-bold !tracking-normal",
     headerSubtitle:
       "!mt-2 !text-[14px] sm:!text-[15px] !leading-6 !text-muted-foreground",
     socialButtonsBlockButton:
