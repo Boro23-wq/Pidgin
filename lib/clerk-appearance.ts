@@ -28,7 +28,7 @@ export const pidginClerkAppearance = {
       "!text-muted-foreground hover:!text-foreground",
     formFieldInputShowPasswordIcon: "!text-muted-foreground",
     formButtonPrimary:
-      "!h-[52px] !rounded-xl !bg-gradient-to-r !from-sky-500 !to-blue-600 !text-white !text-[15px] !font-semibold !shadow-[0_14px_32px_hsl(199_89%_48%/0.2)] hover:!brightness-110 active:!brightness-95",
+      "!w-full !h-[52px] !min-h-[52px] !rounded-xl !bg-gradient-to-r !from-sky-500 !to-blue-600 !text-white !text-[15px] !font-semibold !shadow-[0_14px_32px_hsl(199_89%_48%/0.2)] hover:!brightness-110 active:!brightness-95",
     formFieldAction: "!text-primary hover:!text-sky-300",
     footer: "!mt-8",
     footerActionText: "!text-muted-foreground",

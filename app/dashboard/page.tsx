@@ -57,6 +57,12 @@ import { OnboardingFlow } from "@/components/onboarding-flow";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+interface DigestSource {
+  source_email: string;
+  priority: number;
+  enabled: boolean;
+}
+
 interface Summary {
   id: string;
   created_at: string;
@@ -781,6 +787,314 @@ function FeedbackToast({ onDone }: { onDone: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Digest opt-in toast (shown after first ever sync)
+// ---------------------------------------------------------------------------
+function DigestOptInToast({
+  onSetup,
+  onDismiss,
+}: {
+  onSetup: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.97 }}
+      transition={{ type: "spring", damping: 28, stiffness: 380 }}
+      className="fixed bottom-5 right-5 z-50 w-[300px] rounded-2xl border border-border bg-card shadow-2xl shadow-black/20 px-4 py-4"
+    >
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-semibold leading-snug">
+            Get this in your inbox daily?
+          </p>
+          <button
+            onClick={onDismiss}
+            className="text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-0.5 flex-shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Set up your daily digest — pick which newsletters to include and in
+          what order.
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onSetup}
+            className="flex-1 h-9 rounded-xl bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all"
+          >
+            Set up digest
+          </button>
+          <button
+            onClick={onDismiss}
+            className="h-9 px-3 rounded-xl text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Not now
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Digest setup modal
+// ---------------------------------------------------------------------------
+const MAX_DIGEST_SOURCES = 7;
+
+function DigestSetupModal({
+  onClose,
+  onEnabled,
+}: {
+  onClose: () => void;
+  onEnabled: () => void;
+}) {
+  const [sources, setSources] = useState<DigestSource[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/digest/sources")
+      .then((r) => r.json())
+      .then((data) => {
+        // Clamp: if saved state has more than MAX enabled (e.g. cap was raised/lowered),
+        // disable everything past the limit so the UI starts in a valid state.
+        let count = 0;
+        const clamped = (data.sources ?? []).map((s: DigestSource) => {
+          if (s.enabled && count < MAX_DIGEST_SOURCES) { count++; return s; }
+          if (s.enabled) return { ...s, enabled: false };
+          return s;
+        });
+        setSources(clamped);
+      })
+      .catch(() => setError("Failed to load your newsletters."))
+      .finally(() => setLoadingData(false));
+  }, []);
+
+  const enabledCount = sources.filter((s) => s.enabled).length;
+
+  const toggleEnabled = (email: string) => {
+    setSources((prev) =>
+      prev.map((s) => {
+        if (s.source_email !== email) return s;
+        if (!s.enabled && enabledCount >= MAX_DIGEST_SOURCES) return s;
+        return { ...s, enabled: !s.enabled };
+      }),
+    );
+  };
+
+  const moveUp = (index: number) => {
+    if (index === 0) return;
+    setSources((prev) => {
+      const next = [...prev];
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next.map((s, i) => ({ ...s, priority: i }));
+    });
+  };
+
+  const moveDown = (index: number) => {
+    setSources((prev) => {
+      if (index === prev.length - 1) return prev;
+      const next = [...prev];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      return next.map((s, i) => ({ ...s, priority: i }));
+    });
+  };
+
+  const handleSave = async () => {
+    if (enabledCount === 0 || saving) return;
+    if (enabledCount > MAX_DIGEST_SOURCES) {
+      setError(`Please select no more than ${MAX_DIGEST_SOURCES} sources.`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res1 = await fetch("/api/digest/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sources }),
+      });
+      if (!res1.ok) throw new Error("Failed to save");
+      const res2 = await fetch("/api/digest/enable", { method: "POST" });
+      if (!res2.ok) throw new Error("Failed to enable");
+      onEnabled();
+    } catch {
+      setError("Something went wrong. Try again.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div
+        className="relative z-10 w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col max-h-[80vh]"
+        initial={{ y: "100%", opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: "30%", opacity: 0 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 flex-shrink-0">
+          <div>
+            <p className="text-sm font-semibold">Set up your daily digest</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Choose up to {MAX_DIGEST_SOURCES} sources and set their order in
+              the email.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {loadingData ? (
+            <div className="flex items-center justify-center py-12">
+              <span className="w-5 h-5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="px-5 py-6 text-sm text-red-400">{error}</div>
+          ) : sources.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+              No newsletters found. Sync your inbox first.
+            </div>
+          ) : (
+            <>
+              <div className="px-5 pt-3 pb-1 flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-widest">
+                  Sources
+                </span>
+                <span
+                  className={`text-[11px] font-medium ${enabledCount >= MAX_DIGEST_SOURCES ? "text-amber-400" : "text-muted-foreground/60"}`}
+                >
+                  {enabledCount} / {MAX_DIGEST_SOURCES}
+                </span>
+              </div>
+              <div className="divide-y divide-border">
+                {sources.map((source, index) => (
+                  <motion.div
+                    key={source.source_email}
+                    layout
+                    transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                    className={`flex items-center gap-3 px-5 py-3 transition-opacity ${source.enabled ? "" : "opacity-45"}`}
+                  >
+                    <button
+                      onClick={() => toggleEnabled(source.source_email)}
+                      className={`w-4.5 h-4.5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                        source.enabled
+                          ? "bg-primary border-primary"
+                          : !source.enabled &&
+                              enabledCount >= MAX_DIGEST_SOURCES
+                            ? "border-border cursor-not-allowed"
+                            : "border-border hover:border-primary/60"
+                      }`}
+                      style={{ width: 18, height: 18 }}
+                    >
+                      {source.enabled && (
+                        <svg
+                          className="w-2.5 h-2.5 text-white"
+                          fill="none"
+                          viewBox="0 0 12 12"
+                        >
+                          <path
+                            d="M2 6l3 3 5-5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {extractSenderName(source.source_email)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/50">
+                        #{index + 1} in digest
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      <button
+                        onClick={() => moveUp(index)}
+                        disabled={index === 0}
+                        className="p-1 rounded text-muted-foreground/40 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => moveDown(index)}
+                        disabled={index === sources.length - 1}
+                        className="p-1 rounded text-muted-foreground/40 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+              <p className="px-5 pb-4 pt-2 text-[11px] text-muted-foreground/40">
+                Unchecked sources still appear in the app — just not in your
+                email.
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!loadingData && sources.length > 0 && (
+          <div className="px-5 py-4 border-t border-border flex items-center gap-3 flex-shrink-0">
+            <button
+              onClick={handleSave}
+              disabled={enabledCount === 0 || saving}
+              className="flex-1 h-10 rounded-xl bg-primary text-white text-sm font-semibold disabled:opacity-40 hover:brightness-110 transition-all flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />{" "}
+                  Saving…
+                </>
+              ) : (
+                "Enable daily digest"
+              )}
+            </button>
+            <button
+              onClick={onClose}
+              className="h-10 px-4 rounded-xl text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Maybe later
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Newsletter selection modal
 // ---------------------------------------------------------------------------
 function NewsletterSelectionModal({
@@ -1380,6 +1694,7 @@ function NewsletterSourceCard({
 // ---------------------------------------------------------------------------
 function SourcePanel({
   sourceEmail,
+  sourceEmailId,
   summaries,
   onClose,
   isExpanded,
@@ -1399,6 +1714,7 @@ function SourcePanel({
   onFlag,
 }: {
   sourceEmail: string;
+  sourceEmailId: string;
   summaries: Summary[];
   onClose: () => void;
   isExpanded: (id: string) => boolean;
@@ -1417,7 +1733,10 @@ function SourcePanel({
   onShare: (id: string) => void;
   onFlag: (id: string) => void;
 }) {
-  const articles = summaries.filter((s) => s.source_email === sourceEmail);
+  const articles = summaries.filter(
+    (s) =>
+      s.source_email === sourceEmail && s.source_email_id === sourceEmailId,
+  );
   const senderName = extractSenderName(sourceEmail);
 
   useEffect(() => {
@@ -1795,6 +2114,8 @@ export default function Dashboard() {
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showDigestOptIn, setShowDigestOptIn] = useState(false);
+  const [showDigestSetup, setShowDigestSetup] = useState(false);
 
   // ── Scan / selection modal state ──────────────────────────────────────────
   const [scanResult, setScanResult] = useState<EmailPreview[] | null>(null);
@@ -1819,7 +2140,10 @@ export default function Dashboard() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeSource, setActiveSource] = useState("All");
   const [dateFilter, setDateFilter] = useState<DateFilter>("7d");
-  const [panelSource, setPanelSource] = useState<string | null>(null);
+  const [panelSource, setPanelSource] = useState<{
+    email: string;
+    emailId: string;
+  } | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -1881,7 +2205,18 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchSummaries();
+    fetchSummaries().then(() => {
+      // After summaries load, check if user has opted in to digest.
+      // If not (including "Maybe later" dismissals), re-show the toast.
+      fetch("/api/digest/sources")
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.digestEnabled && (data.sources ?? []).length > 0) {
+            setTimeout(() => setShowDigestOptIn(true), 1500);
+          }
+        })
+        .catch(() => {});
+    });
     fetch("/api/auth/status")
       .then((r) => r.json())
       .then((d) => {
@@ -1976,6 +2311,7 @@ export default function Dashboard() {
 
   // ── Import phase (SSE stream for selected emails) ─────────────────────────
   const handleImport = async (emailIds: string[]) => {
+    const isFirstEver = summaries.length === 0;
     // Dismiss only flagged emails — they were never newsletters.
     // Deselected newsletter-tab items are kept so they reappear on the next scan.
     const unselected = (scanResult ?? [])
@@ -2056,7 +2392,11 @@ export default function Dashboard() {
               setSyncProgress(null);
               await fetchSummaries();
               if (processedCount > 0) {
-                setTimeout(() => setShowFeedback(true), 3000);
+                if (isFirstEver) {
+                  setTimeout(() => setShowDigestOptIn(true), 1500);
+                } else {
+                  setTimeout(() => setShowFeedback(true), 3000);
+                }
               }
             } else if (data.type === "error") {
               setSyncError(data.message);
@@ -2398,6 +2738,17 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* ── Digest setup modal ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showDigestSetup && (
+          <DigestSetupModal
+            key="digest-setup-modal"
+            onClose={() => setShowDigestSetup(false)}
+            onEnabled={() => setShowDigestSetup(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Selection modal ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {scanResult !== null && (
@@ -2456,12 +2807,27 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
+      {/* ── Digest opt-in toast (first sync only) ──────────────────────────── */}
+      <AnimatePresence>
+        {showDigestOptIn && (
+          <DigestOptInToast
+            key="digest-optin-toast"
+            onSetup={() => {
+              setShowDigestOptIn(false);
+              setShowDigestSetup(true);
+            }}
+            onDismiss={() => setShowDigestOptIn(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Source panel ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {panelSource && (
           <SourcePanel
             key="source-panel"
-            sourceEmail={panelSource}
+            sourceEmail={panelSource.email}
+            sourceEmailId={panelSource.emailId}
             summaries={summaries}
             onClose={() => setPanelSource(null)}
             isExpanded={(id) => expandedIds.has(id)}
@@ -2956,9 +3322,14 @@ export default function Dashboard() {
                         <div className="flex flex-col gap-3 lg:hidden">
                           {dateGroup.groups.map((g) => (
                             <NewsletterSourceCard
-                              key={g.sourceEmail}
+                              key={`${g.sourceEmail}::${g.articles[0]?.source_email_id ?? g.date}`}
                               group={g}
-                              onOpen={() => setPanelSource(g.sourceEmail)}
+                              onOpen={() =>
+                                setPanelSource({
+                                  email: g.sourceEmail,
+                                  emailId: g.articles[0]?.source_email_id ?? "",
+                                })
+                              }
                             />
                           ))}
                         </div>
@@ -2967,18 +3338,30 @@ export default function Dashboard() {
                           <div className="flex-1 min-w-0 flex flex-col gap-3">
                             {left.map((g) => (
                               <NewsletterSourceCard
-                                key={g.sourceEmail}
+                                key={`${g.sourceEmail}::${g.articles[0]?.source_email_id ?? g.date}`}
                                 group={g}
-                                onOpen={() => setPanelSource(g.sourceEmail)}
+                                onOpen={() =>
+                                  setPanelSource({
+                                    email: g.sourceEmail,
+                                    emailId:
+                                      g.articles[0]?.source_email_id ?? "",
+                                  })
+                                }
                               />
                             ))}
                           </div>
                           <div className="flex-1 min-w-0 flex flex-col gap-3">
                             {right.map((g) => (
                               <NewsletterSourceCard
-                                key={g.sourceEmail}
+                                key={`${g.sourceEmail}::${g.articles[0]?.source_email_id ?? g.date}`}
                                 group={g}
-                                onOpen={() => setPanelSource(g.sourceEmail)}
+                                onOpen={() =>
+                                  setPanelSource({
+                                    email: g.sourceEmail,
+                                    emailId:
+                                      g.articles[0]?.source_email_id ?? "",
+                                  })
+                                }
                               />
                             ))}
                           </div>

@@ -50,7 +50,9 @@ function buildHtml(
 
   const sourcesHtml = [...grouped.entries()]
     .map(
-      ([source, items]) => `
+      ([source, items]) => {
+        const cappedItems = items.slice(0, 2);
+        return `
     <div style="margin-bottom:48px;">
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
         <tr>
@@ -59,16 +61,18 @@ function buildHtml(
           </td>
         </tr>
       </table>
-      ${items
+      ${cappedItems
         .map(
-          (a, i) => `
+          (a, i) => {
+            const keyPoints = (Array.isArray(a.key_points) ? (a.key_points as string[]) : []).slice(0, 3);
+            return `
         <div style="${i > 0 ? "margin-top:32px;padding-top:32px;border-top:1px solid #f3f4f6;" : ""}">
           <p style="font-size:16px;font-weight:700;color:#111827;margin:0 0 10px;line-height:1.35;">${a.newsletter_title}</p>
           ${a.summary ? `<p style="font-size:14px;color:#374151;margin:0 0 14px;line-height:1.75;">${a.summary}</p>` : ""}
           ${
-            Array.isArray(a.key_points) && a.key_points.length > 0
+            keyPoints.length > 0
               ? `<table cellpadding="0" cellspacing="0" style="margin:0 0 12px;">
-              ${(a.key_points as string[])
+              ${keyPoints
                 .map(
                   (pt) => `
               <tr>
@@ -82,17 +86,14 @@ function buildHtml(
             </table>`
               : ""
           }
-          ${
-            a.simple_explanation
-              ? `<div style="border-left:2px solid #e5e7eb;padding-left:12px;margin-top:12px;">
-              <p style="font-size:12px;color:#6b7280;margin:0;line-height:1.65;font-style:italic;">${a.simple_explanation}</p>
-            </div>`
-              : ""
+          ${a.source_url ? `<p style="margin:10px 0 0;"><a href="${a.source_url}" style="font-size:12px;color:${BRAND};text-decoration:none;font-weight:600;">Read original →</a></p>` : ""}
+        </div>`;
           }
-        </div>`
         )
         .join("")}
-    </div>`
+      ${items.length > 2 ? `<p style="margin:14px 0 0;"><a href="${APP_URL}/dashboard" style="font-size:12px;color:#9ca3af;text-decoration:none;">+ ${items.length - 2} more from ${source} in the app →</a></p>` : ""}
+    </div>`;
+      }
     )
     .join("");
 
@@ -203,23 +204,58 @@ async function processUser(clerkUserId: string): Promise<{
       .eq("user_id", clerkUserId);
     const approvedSenders = new Set((knownSources ?? []).map((s) => s.source_email));
 
-    const toProcess = emails.filter((e) => {
+    let toProcess = emails.filter((e) => {
       if (dismissedSet.has(e.id)) return false;
       if (approvedSenders.size > 0 && !approvedSenders.has(e.from)) return false;
       return true;
     });
 
+    // Respect user's digest source priority if configured
+    const { data: digestSrcs } = await supabase
+      .from("digest_sources")
+      .select("source_email, priority")
+      .eq("user_id", clerkUserId)
+      .eq("enabled", true)
+      .order("priority", { ascending: true });
+
+    if (digestSrcs && digestSrcs.length > 0) {
+      const priorityMap = new Map(digestSrcs.map((s) => [s.source_email, s.priority]));
+      toProcess = toProcess
+        .filter((e) => priorityMap.has(e.from))
+        .sort((a, b) => (priorityMap.get(a.from) ?? 99) - (priorityMap.get(b.from) ?? 99));
+    }
+
+    // Count today's existing summaries per source — skip sources that already have ≥2
+    const today = new Date().toISOString().split("T")[0];
+    const { data: todayRows } = await supabase
+      .from("summaries")
+      .select("source_email")
+      .eq("user_id", clerkUserId)
+      .eq("processed_date", today);
+    const sourceCountToday = new Map<string, number>();
+    for (const row of todayRows ?? []) {
+      sourceCountToday.set(row.source_email, (sourceCountToday.get(row.source_email) ?? 0) + 1);
+    }
+
     // Summarize each email
+    const CONTENT_CAP = 12000;
     let synced = 0;
     for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
       const chunk = toProcess.slice(i, i + BATCH_SIZE);
       await Promise.allSettled(
         chunk.map(async (email) => {
           try {
+            // Skip if this source already has 2 summaries today — won't appear in digest
+            if ((sourceCountToday.get(email.from) ?? 0) >= 2) return;
+
             const alreadyProcessed = await isEmailProcessed(email.id, clerkUserId);
             if (alreadyProcessed) return;
 
-            const stories = await extractNewsletterStories(email.body, email.subject, email.links);
+            const stories = await extractNewsletterStories(
+              email.body.slice(0, CONTENT_CAP),
+              email.subject,
+              email.links
+            );
             for (const story of stories) {
               const saved = await saveSummary(
                 {
@@ -254,8 +290,17 @@ async function processUser(clerkUserId: string): Promise<{
     }
 
     // Get today's summaries (including ones already synced before this run)
-    const articles = await getTodaysSummaries(clerkUserId);
+    let articles = await getTodaysSummaries(clerkUserId);
     if (articles.length === 0) return { synced, sent: false };
+
+    // Enforce user's digest source selection and priority order
+    if (digestSrcs && digestSrcs.length > 0) {
+      const priorityMap = new Map(digestSrcs.map((s) => [s.source_email, s.priority]));
+      articles = articles
+        .filter((a) => priorityMap.has(a.source_email))
+        .sort((a, b) => (priorityMap.get(a.source_email) ?? 99) - (priorityMap.get(b.source_email) ?? 99));
+      if (articles.length === 0) return { synced, sent: false };
+    }
 
     // Look up user's email + name from Clerk
     const clerk = await clerkClient();
@@ -296,10 +341,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get all users who have Gmail connected
+  // Get all users who have opted in to daily digest
   const { data: tokenRows, error: tokenErr } = await supabase
     .from("user_tokens")
-    .select("clerk_user_id");
+    .select("clerk_user_id")
+    .eq("auto_digest_enabled", true);
 
   if (tokenErr) {
     console.error("[cron/digest] failed to fetch users:", tokenErr);

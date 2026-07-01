@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getTodaysSummaries } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
@@ -30,9 +31,10 @@ function buildHtml(articles: Awaited<ReturnType<typeof getTodaysSummaries>>, use
     grouped.get(src)!.push(a);
   }
 
-  const sourcesHtml = [...grouped.entries()].map(([source, items]) => `
+  const sourcesHtml = [...grouped.entries()].map(([source, items]) => {
+    const cappedItems = items.slice(0, 2);
+    return `
     <div style="margin-bottom:48px;">
-      <!-- Source label -->
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
         <tr>
           <td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#9ca3af;padding-bottom:10px;border-bottom:1px solid #e5e7eb;">
@@ -41,17 +43,12 @@ function buildHtml(articles: Awaited<ReturnType<typeof getTodaysSummaries>>, use
         </tr>
       </table>
 
-      ${items.map((a, i) => {
-        const keyPoints: string[] = Array.isArray(a.key_points) ? a.key_points : [];
+      ${cappedItems.map((a, i) => {
+        const keyPoints: string[] = (Array.isArray(a.key_points) ? a.key_points as string[] : []).slice(0, 3);
         return `
         <div style="${i > 0 ? "margin-top:32px;padding-top:32px;border-top:1px solid #f3f4f6;" : ""}">
-          <!-- Title -->
           <p style="font-size:16px;font-weight:700;color:#111827;margin:0 0 10px;line-height:1.35;">${a.newsletter_title}</p>
-
-          <!-- Full summary -->
           ${a.summary ? `<p style="font-size:14px;color:#374151;margin:0 0 14px;line-height:1.75;">${a.summary}</p>` : ""}
-
-          <!-- Key points -->
           ${keyPoints.length > 0 ? `
           <table cellpadding="0" cellspacing="0" style="margin:0 0 12px;">
             ${keyPoints.map(pt => `
@@ -62,16 +59,13 @@ function buildHtml(articles: Awaited<ReturnType<typeof getTodaysSummaries>>, use
               <td style="font-size:13px;color:#4b5563;line-height:1.6;padding-bottom:6px;">${pt}</td>
             </tr>`).join("")}
           </table>` : ""}
-
-          <!-- Simple explanation -->
-          ${a.simple_explanation ? `
-          <div style="border-left:2px solid #e5e7eb;padding-left:12px;margin-top:12px;">
-            <p style="font-size:12px;color:#6b7280;margin:0;line-height:1.65;font-style:italic;">${a.simple_explanation}</p>
-          </div>` : ""}
+          ${a.source_url ? `<p style="margin:10px 0 0;"><a href="${a.source_url}" style="font-size:12px;color:${BRAND};text-decoration:none;font-weight:600;">Read original →</a></p>` : ""}
         </div>`;
       }).join("")}
+      ${items.length > 2 ? `<p style="margin:14px 0 0;"><a href="${APP_URL}/dashboard" style="font-size:12px;color:#9ca3af;text-decoration:none;">+ ${items.length - 2} more from ${source} in the app →</a></p>` : ""}
     </div>
-  `).join("");
+  `;
+  }).join("");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -167,9 +161,27 @@ export async function POST() {
   const userEmail = user?.emailAddresses[0]?.emailAddress;
   if (!userEmail) return NextResponse.json({ error: "No email found for user" }, { status: 400 });
 
-  const articles = await getTodaysSummaries(userId);
+  let articles = await getTodaysSummaries(userId);
   if (articles.length === 0) {
     return NextResponse.json({ sent: false, reason: "No articles today" });
+  }
+
+  // Respect user's digest source selection and priority order
+  const { data: digestSrcs } = await supabase
+    .from("digest_sources")
+    .select("source_email, priority")
+    .eq("user_id", userId)
+    .eq("enabled", true)
+    .order("priority", { ascending: true });
+
+  if (digestSrcs && digestSrcs.length > 0) {
+    const priorityMap = new Map(digestSrcs.map((s) => [s.source_email, s.priority]));
+    articles = articles
+      .filter((a) => priorityMap.has(a.source_email))
+      .sort((a, b) => (priorityMap.get(a.source_email) ?? 99) - (priorityMap.get(b.source_email) ?? 99));
+    if (articles.length === 0) {
+      return NextResponse.json({ sent: false, reason: "No articles from selected sources today" });
+    }
   }
 
   const html = buildHtml(articles, user?.firstName ?? "", userId);
