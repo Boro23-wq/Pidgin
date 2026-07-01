@@ -10,6 +10,7 @@ import {
   deleteOldSummaries,
   getBlockedDomains,
   getTodaysSummaries,
+  getDismissedEmailIds,
 } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase";
 
@@ -189,10 +190,29 @@ async function processUser(clerkUserId: string): Promise<{
       blockedDomains
     );
 
+    // Filter out emails the user explicitly dismissed during manual syncs
+    const emailIds = emails.map((e) => e.id);
+    const dismissedIds = await getDismissedEmailIds(emailIds, clerkUserId);
+    const dismissedSet = new Set(dismissedIds);
+
+    // Restrict to sources the user has previously approved (appeared in their summaries).
+    // If no history exists (new user), allow all so their first cron still works.
+    const { data: knownSources } = await supabase
+      .from("summaries")
+      .select("source_email")
+      .eq("user_id", clerkUserId);
+    const approvedSenders = new Set((knownSources ?? []).map((s) => s.source_email));
+
+    const toProcess = emails.filter((e) => {
+      if (dismissedSet.has(e.id)) return false;
+      if (approvedSenders.size > 0 && !approvedSenders.has(e.from)) return false;
+      return true;
+    });
+
     // Summarize each email
     let synced = 0;
-    for (let i = 0; i < emails.length; i += BATCH_SIZE) {
-      const chunk = emails.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
+      const chunk = toProcess.slice(i, i + BATCH_SIZE);
       await Promise.allSettled(
         chunk.map(async (email) => {
           try {
