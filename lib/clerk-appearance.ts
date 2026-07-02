@@ -15,7 +15,7 @@ export const pidginClerkAppearance = {
     headerSubtitle:
       "!mt-2 !text-[14px] sm:!text-[15px] !leading-6 !text-muted-foreground",
     socialButtonsBlockButton:
-      "!h-[52px] !rounded-xl !border-0 !bg-secondary/45 !text-foreground !font-semibold !shadow-[inset_0_0_0_1px_hsl(var(--border)/0.45)] hover:!bg-secondary/70 transition-colors",
+      "!h-[52px] !rounded-xl !bg-secondary/45 !text-foreground !font-semibold !outline !outline-1 !outline-offset-0 !outline-black/[0.10] dark:!outline-white/[0.12] hover:!bg-secondary/70 transition-colors",
     socialButtonsBlockButtonText: "!text-foreground !font-semibold",
     dividerLine: "!bg-border/70",
     dividerText: "!text-muted-foreground !text-xs !font-medium",
@@ -28,11 +28,14 @@ export const pidginClerkAppearance = {
       "!text-muted-foreground hover:!text-foreground",
     formFieldInputShowPasswordIcon: "!text-muted-foreground",
     formButtonPrimary:
-      "!w-full !h-[52px] !min-h-[52px] !rounded-xl !bg-gradient-to-r !from-sky-500 !to-blue-600 !text-white !text-[15px] !font-semibold !shadow-[0_14px_32px_hsl(199_89%_48%/0.2)] hover:!brightness-110 active:!brightness-95",
+      "!w-full !h-[52px] !min-h-[52px] !rounded-xl !bg-gradient-to-r !from-sky-500 !to-blue-600 !text-white !text-[15px] !font-semibold !shadow-none dark:!shadow-[0_14px_32px_hsl(199_89%_48%/0.2)] hover:!brightness-110 active:!brightness-95",
     formFieldAction: "!text-primary hover:!text-sky-300",
-    footer: "!mt-8",
+    footer: "!mt-8 !border-0 !border-t-0 !shadow-none",
+    footerPages: "!border-0 !border-t-0 !shadow-none",
+    footerAction: "!border-0 !border-t-0 !shadow-none",
+    main: "!border-0 !shadow-none",
     footerActionText: "!text-muted-foreground",
-    footerActionLink: "!text-primary hover:!text-sky-300 !font-semibold",
+    footerActionLink: "!text-primary hover:!text-sky-300 !font-semibold ![text-decoration:none]",
     identityPreview:
       "!mt-5 !rounded-[12px] !border !border-border/60 !bg-secondary/25 !text-foreground !shadow-none !outline-none",
     identityPreviewText: "!text-muted-foreground !text-sm",
