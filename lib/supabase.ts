@@ -137,14 +137,46 @@ export async function deleteOldSummaries(userId: string, daysOld = 90): Promise<
   return data ? data.length : 0;
 }
 
-export async function dismissEmails(emailIds: string[], userId: string): Promise<void> {
-  if (!emailIds.length) return;
+export async function dismissEmails(
+  emails: Array<{ id: string; fromName?: string; fromEmail?: string; subject?: string }>,
+  userId: string
+): Promise<void> {
+  if (!emails.length) return;
   await supabase
     .from("dismissed_emails")
     .upsert(
-      emailIds.map((id) => ({ user_id: userId, email_id: id })),
+      emails.map((e) => ({
+        user_id: userId,
+        email_id: e.id,
+        from_name: e.fromName ?? null,
+        from_email: e.fromEmail ?? null,
+        subject: e.subject ?? null,
+      })),
       { onConflict: "user_id,email_id" }
     );
+}
+
+export async function getDismissedEmails(userId: string): Promise<Array<{
+  email_id: string;
+  from_name: string | null;
+  from_email: string | null;
+  subject: string | null;
+  dismissed_at: string | null;
+}>> {
+  const { data } = await supabase
+    .from("dismissed_emails")
+    .select("email_id, from_name, from_email, subject, dismissed_at")
+    .eq("user_id", userId)
+    .order("dismissed_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function undismissEmail(emailId: string, userId: string): Promise<void> {
+  await supabase
+    .from("dismissed_emails")
+    .delete()
+    .eq("user_id", userId)
+    .eq("email_id", emailId);
 }
 
 export async function getDismissedEmailIds(

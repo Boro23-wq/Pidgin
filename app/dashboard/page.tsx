@@ -115,6 +115,55 @@ type Platform = "linkedin" | "twitter";
 type SortOption = "newest" | "oldest" | "source" | "category";
 type DateFilter = "7d" | "all";
 
+function FilterSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const label = options.find((o) => o.value === value)?.label ?? value;
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="h-7 flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 pl-2 pr-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-inset focus:border-primary/60"
+      >
+        {label}
+        <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 min-w-full rounded-md border border-border bg-popover shadow-lg py-1">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-secondary/60 transition-colors ${value === o.value ? "text-primary font-medium" : "text-foreground"}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Category config
 // ---------------------------------------------------------------------------
@@ -1177,7 +1226,7 @@ function NewsletterSelectionModal({
 
       {/* Sheet / card */}
       <motion.div
-        className="relative z-10 w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col h-[60vh]"
+        className="relative z-10 w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col h-[85vh] sm:h-[80vh]"
         initial={{ y: "100%", opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: "30%", opacity: 0 }}
@@ -1690,6 +1739,111 @@ function NewsletterSourceCard({
 }
 
 // ---------------------------------------------------------------------------
+// Dismissed emails panel
+// ---------------------------------------------------------------------------
+interface DismissedEmail {
+  email_id: string;
+  from_name: string | null;
+  from_email: string | null;
+  subject: string | null;
+  dismissed_at: string | null;
+}
+
+function DismissedEmailsPanel({ onClose }: { onClose: () => void }) {
+  const [emails, setEmails] = useState<DismissedEmail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [restoring, setRestoring] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/dismiss")
+      .then((r) => r.json())
+      .then((d) => setEmails(d.emails ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleRestore = async (emailId: string) => {
+    setRestoring((prev) => new Set(prev).add(emailId));
+    await fetch(`/api/dismiss?emailId=${encodeURIComponent(emailId)}`, { method: "DELETE" }).catch(() => {});
+    setEmails((prev) => prev.filter((e) => e.email_id !== emailId));
+    setRestoring((prev) => { const s = new Set(prev); s.delete(emailId); return s; });
+  };
+
+  return (
+    <motion.div
+      key="dismissed-panel"
+      className="fixed inset-0 z-50 flex"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        className="w-full max-w-sm bg-background border-l border-border flex flex-col h-full shadow-2xl"
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Dismissed emails</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Restore to see them in future scans</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : emails.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+              <CheckCheck className="w-8 h-8 text-muted-foreground/30 mb-3" />
+              <p className="text-sm font-medium text-foreground">No dismissed emails</p>
+              <p className="text-xs text-muted-foreground mt-1">Emails Claude flags as non-newsletters appear here.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-border/50">
+              {emails.map((e) => (
+                <li key={e.email_id} className="flex items-start gap-3 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {e.from_name ?? e.from_email ?? "Unknown sender"}
+                    </p>
+                    {e.subject && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{e.subject}</p>
+                    )}
+                    {!e.from_name && !e.from_email && (
+                      <p className="text-xs text-muted-foreground/40 mt-0.5">No preview available</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleRestore(e.email_id)}
+                    disabled={restoring.has(e.email_id)}
+                    className="flex-shrink-0 text-[11px] font-medium text-primary hover:text-sky-300 disabled:opacity-40 transition-colors"
+                  >
+                    {restoring.has(e.email_id) ? "Restoring…" : "Restore"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Source panel (right drawer)
 // ---------------------------------------------------------------------------
 function SourcePanel({
@@ -2144,6 +2298,8 @@ export default function Dashboard() {
     email: string;
     emailId: string;
   } | null>(null);
+  const [showDismissedPanel, setShowDismissedPanel] = useState(false);
+  const [dismissedCount, setDismissedCount] = useState(0);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -2223,6 +2379,10 @@ export default function Dashboard() {
         setGmailConnected(d.connected);
       })
       .catch(() => setGmailConnected(false));
+    fetch("/api/dismiss")
+      .then((r) => r.json())
+      .then((d) => setDismissedCount((d.emails ?? []).length))
+      .catch(() => {});
   }, [fetchSummaries]);
 
   // ── Scan phase (opens selection modal) ────────────────────────────────────
@@ -2316,12 +2476,12 @@ export default function Dashboard() {
     // Deselected newsletter-tab items are kept so they reappear on the next scan.
     const unselected = (scanResult ?? [])
       .filter((n) => shouldFlagEmail(n) && !emailIds.includes(n.id))
-      .map((n) => n.id);
+      .map((n) => ({ id: n.id, fromName: n.fromName, fromEmail: n.fromEmail, subject: n.subject }));
     if (unselected.length) {
       fetch("/api/dismiss", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailIds: unselected }),
+        body: JSON.stringify({ emails: unselected }),
       }).catch(() => {});
     }
 
@@ -2821,6 +2981,16 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
+      {/* ── Dismissed emails panel ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showDismissedPanel && (
+          <DismissedEmailsPanel
+            key="dismissed-panel"
+            onClose={() => setShowDismissedPanel(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Source panel ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {panelSource && (
@@ -3190,7 +3360,7 @@ export default function Dashboard() {
                           value={searchInput}
                           onChange={(e) => setSearchInput(e.target.value)}
                           placeholder="Search…"
-                          className="pl-6 pr-6 h-7 w-36 text-xs bg-secondary/30 border-border/60 focus-visible:ring-primary/40"
+                          className="pl-6 pr-6 h-7 w-36 lg:w-52 text-xs bg-secondary/30 border-border/60 focus-visible:ring-1 focus-visible:ring-primary/60 focus-visible:ring-inset focus-visible:border-primary/60"
                         />
                         {searchInput && (
                           <button
@@ -3202,42 +3372,44 @@ export default function Dashboard() {
                         )}
                       </div>
 
-                      <select
+                      <FilterSelect
                         value={activeSource}
-                        onChange={(e) => setActiveSource(e.target.value)}
-                        className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      >
-                        <option value="All">All sources</option>
-                        {uniqueSources.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={setActiveSource}
+                        options={[
+                          { value: "All", label: "All sources" },
+                          ...uniqueSources.map((s) => ({ value: s, label: s })),
+                        ]}
+                      />
 
-                      <select
+                      <FilterSelect
                         value={dateFilter}
-                        onChange={(e) =>
-                          setDateFilter(e.target.value as DateFilter)
-                        }
-                        className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      >
-                        <option value="7d">Last 7 days</option>
-                        <option value="all">All time</option>
-                      </select>
+                        onChange={(v) => setDateFilter(v as DateFilter)}
+                        options={[
+                          { value: "7d", label: "Last 7 days" },
+                          { value: "all", label: "All time" },
+                        ]}
+                      />
 
-                      <select
+                      <FilterSelect
                         value={sortBy}
-                        onChange={(e) =>
-                          setSortBy(e.target.value as SortOption)
-                        }
-                        className="h-7 rounded-md border border-border bg-secondary/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      >
-                        <option value="newest">Newest first</option>
-                        <option value="oldest">Oldest first</option>
-                        <option value="source">By source</option>
-                        <option value="category">By category</option>
-                      </select>
+                        onChange={(v) => setSortBy(v as SortOption)}
+                        options={[
+                          { value: "newest", label: "Newest first" },
+                          { value: "oldest", label: "Oldest first" },
+                          { value: "source", label: "By source" },
+                          { value: "category", label: "By category" },
+                        ]}
+                      />
+
+                      {dismissedCount > 0 && (
+                        <button
+                          onClick={() => setShowDismissedPanel(true)}
+                          className="h-7 flex items-center gap-1.5 px-2.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors border border-border/40"
+                        >
+                          <EyeOff className="w-3 h-3" />
+                          Dismissed ({dismissedCount})
+                        </button>
+                      )}
 
                       {!loading && (
                         <span className="ml-auto text-xs text-muted-foreground">
