@@ -1749,7 +1749,7 @@ interface DismissedEmail {
   dismissed_at: string | null;
 }
 
-function DismissedEmailsPanel({ onClose }: { onClose: () => void }) {
+function DismissedEmailsPanel({ onClose, onCountChange }: { onClose: () => void; onCountChange: (n: number) => void }) {
   const [emails, setEmails] = useState<DismissedEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<Set<string>>(new Set());
@@ -1770,7 +1770,11 @@ function DismissedEmailsPanel({ onClose }: { onClose: () => void }) {
   const handleRestore = async (emailId: string) => {
     setRestoring((prev) => new Set(prev).add(emailId));
     await fetch(`/api/dismiss?emailId=${encodeURIComponent(emailId)}`, { method: "DELETE" }).catch(() => {});
-    setEmails((prev) => prev.filter((e) => e.email_id !== emailId));
+    setEmails((prev) => {
+      const next = prev.filter((e) => e.email_id !== emailId);
+      onCountChange(next.length);
+      return next;
+    });
     setRestoring((prev) => { const s = new Set(prev); s.delete(emailId); return s; });
   };
 
@@ -2352,7 +2356,17 @@ export default function Dashboard() {
     try {
       const res = await fetch("/api/summaries", { cache: "no-store" });
       const data = await res.json();
-      setSummaries(Array.isArray(data) ? data : []);
+      // Supabase returns timestamps without a timezone suffix — append Z so
+      // JavaScript parses them as UTC instead of local time.
+      const normalized = Array.isArray(data)
+        ? data.map((s: Summary) => ({
+            ...s,
+            created_at: s.created_at && !s.created_at.endsWith("Z") && !s.created_at.includes("+")
+              ? s.created_at + "Z"
+              : s.created_at,
+          }))
+        : [];
+      setSummaries(normalized);
     } catch {
       setSummaries([]);
     } finally {
@@ -2482,7 +2496,11 @@ export default function Dashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emails: unselected }),
-      }).catch(() => {});
+      })
+        .then(() => fetch("/api/dismiss"))
+        .then((r) => r.json())
+        .then((d) => setDismissedCount((d.emails ?? []).length))
+        .catch(() => {});
     }
 
     setScanResult(null);
@@ -2987,6 +3005,7 @@ export default function Dashboard() {
           <DismissedEmailsPanel
             key="dismissed-panel"
             onClose={() => setShowDismissedPanel(false)}
+            onCountChange={setDismissedCount}
           />
         )}
       </AnimatePresence>
@@ -3468,7 +3487,7 @@ export default function Dashboard() {
               // Group paged source cards by their latest article date
               const dateGroups: { label: string; groups: SourceGroup[] }[] = [];
               paged.forEach((g) => {
-                const label = dateSectionLabel(g.date + "T12:00:00");
+                const label = dateSectionLabel(g.latestDate);
                 const last = dateGroups[dateGroups.length - 1];
                 if (last?.label === label) last.groups.push(g);
                 else dateGroups.push({ label, groups: [g] });
