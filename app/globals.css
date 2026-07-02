@@ -191,6 +191,16 @@ html {
   box-shadow: none !important;
 }
 
+/* Remove blue focus ring on active OTP cell */
+.pidgin-clerk-auth [class*="otpCodeField"] input:focus,
+.pidgin-clerk-auth [class*="otpCodeField"] input:focus-visible,
+.pidgin-clerk-auth .cl-otpCodeFieldInput:focus,
+.pidgin-clerk-auth [class*="otpCodeFieldInput"]:focus {
+  border-color: hsl(var(--border) / 0.7) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Kill all outward focus rings/shadows on every element in the auth area */
 .pidgin-clerk-auth *:focus,
 .pidgin-clerk-auth *:focus-visible,
