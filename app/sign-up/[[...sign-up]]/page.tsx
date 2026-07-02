@@ -2,15 +2,23 @@
 
 import { SignUp, useUser } from "@clerk/nextjs";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
 import { pidginClerkAppearance } from "@/lib/clerk-appearance";
+import { isInviteOnlyEnabled } from "@/lib/invite-only";
 
 export default function SignUpPage() {
   const { isSignedIn, isLoaded } = useUser();
+  const router = useRouter();
+  const inviteOnly = isInviteOnlyEnabled();
 
   useEffect(() => {
+    if (inviteOnly) {
+      router.replace("/waitlist");
+      return;
+    }
     const onFocusIn = (e: FocusEvent) => {
       const t = e.target as HTMLElement;
       if (t.tagName !== "INPUT") return;
