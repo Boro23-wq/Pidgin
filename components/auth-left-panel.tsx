@@ -9,7 +9,7 @@ const STORIES = [
     source: "The Batch",
     time: "2h ago",
     category: "AI & ML",
-    catStyle: "bg-indigo-500/20 text-indigo-300 border-indigo-500/25",
+    catStyle: "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/25",
     headline: "OpenAI releases reasoning model with 40% cost reduction",
     snippet:
       "The latest model cuts inference costs significantly while improving multi-step reasoning tasks by a wide margin...",
@@ -19,7 +19,7 @@ const STORIES = [
     source: "Morning Brew",
     time: "4h ago",
     category: "Tech",
-    catStyle: "bg-blue-500/20 text-blue-300 border-blue-500/25",
+    catStyle: "bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border-blue-200 dark:border-blue-500/25",
     headline: "Apple planning full Siri overhaul with in-house LLM for iOS 19",
     snippet:
       "The redesign would replace Siri's core engine, enabling complex multi-turn conversations and on-device reasoning...",
@@ -29,7 +29,7 @@ const STORIES = [
     source: "TLDR Newsletter",
     time: "5h ago",
     category: "Startups",
-    catStyle: "bg-purple-500/20 text-purple-300 border-purple-500/25",
+    catStyle: "bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-200 dark:border-purple-500/25",
     headline: "Mistral raises $640M Series C at $6B valuation",
     snippet:
       "The French AI lab plans to scale infrastructure and expand its enterprise customer base across Europe and North America...",
@@ -70,7 +70,14 @@ export function AuthLeftPanel() {
     <div className="hidden lg:flex w-[480px] flex-shrink-0 flex-col relative overflow-hidden">
       {/* Background */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 dark:hidden"
+        style={{
+          background:
+            "linear-gradient(145deg, hsl(210 40% 96%) 0%, hsl(220 50% 94%) 50%, hsl(240 30% 96%) 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-0 hidden dark:block"
         style={{
           background:
             "linear-gradient(145deg, hsl(221 70% 8%) 0%, hsl(240 30% 6%) 50%, hsl(260 40% 7%) 100%)",
@@ -83,7 +90,7 @@ export function AuthLeftPanel() {
           className="absolute -top-20 -left-20 w-[400px] h-[400px] rounded-full"
           style={{
             background:
-              "radial-gradient(circle, hsl(199 89% 48% / 0.22) 0%, transparent 65%)",
+              "radial-gradient(circle, hsl(199 89% 48% / 0.12) 0%, transparent 65%)",
           }}
           animate={{ x: [0, 14, 0], y: [0, -10, 0] }}
           transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
@@ -92,7 +99,7 @@ export function AuthLeftPanel() {
           className="absolute bottom-0 right-[-10%] w-[350px] h-[350px] rounded-full"
           style={{
             background:
-              "radial-gradient(circle, hsl(250 80% 55% / 0.18) 0%, transparent 65%)",
+              "radial-gradient(circle, hsl(250 80% 55% / 0.1) 0%, transparent 65%)",
           }}
           animate={{ x: [0, -12, 0], y: [0, 12, 0] }}
           transition={{
@@ -102,21 +109,14 @@ export function AuthLeftPanel() {
             delay: 1.2,
           }}
         />
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle, hsl(199 89% 48% / 0.04) 0%, transparent 70%)",
-          }}
-        />
       </div>
 
       {/* Fine grid */}
       <div
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 opacity-[0.035]"
         style={{
           backgroundImage:
-            "linear-gradient(hsl(199 89% 80%) 1px,transparent 1px),linear-gradient(90deg,hsl(199 89% 80%) 1px,transparent 1px)",
+            "linear-gradient(hsl(199 89% 48%) 1px,transparent 1px),linear-gradient(90deg,hsl(199 89% 48%) 1px,transparent 1px)",
           backgroundSize: "40px 40px",
         }}
       />
@@ -132,16 +132,16 @@ export function AuthLeftPanel() {
         {/* Middle */}
         <div className="space-y-6">
           <div>
-            <p className="text-white/40 text-xs font-semibold uppercase tracking-[0.2em] mb-2">
+            <p className="text-gray-400 dark:text-white/40 text-xs font-semibold uppercase tracking-[0.2em] mb-2">
               Your digest, today
             </p>
-            <h2 className="text-white text-2xl font-bold leading-tight tracking-tight">
+            <h2 className="text-gray-900 dark:text-white text-2xl font-bold leading-tight tracking-tight">
               Every newsletter.
               <br />
               <span
                 style={{
                   background:
-                    "linear-gradient(90deg, hsl(199 89% 65%), hsl(250 80% 70%))",
+                    "linear-gradient(90deg, hsl(199 89% 45%), hsl(250 80% 60%))",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}
@@ -151,11 +151,11 @@ export function AuthLeftPanel() {
             </h2>
           </div>
 
-          {/* Floating + rotating mock card */}
+          {/* Floating mock card */}
           <motion.div
             animate={{ y: [0, -6, 0] }}
             transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-            className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-sm p-4 min-h-[168px]"
+            className="rounded-xl border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-white/[0.04] backdrop-blur-sm p-4 min-h-[168px]"
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -170,11 +170,11 @@ export function AuthLeftPanel() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <motion.div
-                      className="w-2 h-2 rounded-full bg-sky-400"
+                      className="w-2 h-2 rounded-full bg-sky-500"
                       animate={{ opacity: [1, 0.35, 1] }}
                       transition={{ duration: 2, repeat: Infinity }}
                     />
-                    <span className="text-white/50 text-xs">
+                    <span className="text-gray-500 dark:text-white/50 text-xs">
                       {story.source} · {story.time}
                     </span>
                   </div>
@@ -186,10 +186,10 @@ export function AuthLeftPanel() {
                 </div>
 
                 {/* Headline */}
-                <p className="text-white/90 text-sm font-semibold leading-snug">
+                <p className="text-gray-800 dark:text-white/90 text-sm font-semibold leading-snug">
                   {story.headline}
                 </p>
-                <p className="text-white/40 text-xs leading-relaxed">
+                <p className="text-gray-400 dark:text-white/40 text-xs leading-relaxed">
                   {story.snippet}
                 </p>
 
@@ -207,23 +207,23 @@ export function AuthLeftPanel() {
                           stiffness: 380,
                           damping: 22,
                         }}
-                        className="h-6 px-2.5 rounded-md bg-sky-500/15 border border-sky-500/20 flex items-center gap-1.5"
+                        className="h-6 px-2.5 rounded-md bg-sky-500/10 border border-sky-500/20 flex items-center gap-1.5"
                       >
                         <motion.div
-                          className="w-1.5 h-1.5 rounded-full bg-sky-400"
+                          className="w-1.5 h-1.5 rounded-full bg-sky-500"
                           animate={{ opacity: [1, 0.25, 1] }}
                           transition={{ duration: 1.6, repeat: Infinity }}
                         />
-                        <Linkedin className="w-3 h-3 text-sky-400" />
-                        <span className="text-[10px] text-sky-400 font-medium">
+                        <Linkedin className="w-3 h-3 text-sky-500" />
+                        <span className="text-[10px] text-sky-500 font-medium">
                           Post ready
                         </span>
                       </motion.div>
                     )}
                   </AnimatePresence>
-                  <div className="h-6 px-2.5 rounded-md bg-white/5 border border-white/10 flex items-center gap-1.5">
-                    <Sparkles className="w-3 h-3 text-white/30" />
-                    <span className="text-[10px] text-white/30 font-medium">
+                  <div className="h-6 px-2.5 rounded-md bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-gray-400 dark:text-white/30" />
+                    <span className="text-[10px] text-gray-400 dark:text-white/30 font-medium">
                       Generate X post
                     </span>
                   </div>
@@ -246,22 +246,18 @@ export function AuthLeftPanel() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: delay / 1000 + 0.2, duration: 0.45 }}
-                whileHover={{
-                  scale: 1.04,
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                }}
-                className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2.5 transition-colors cursor-default"
+                className="rounded-lg border border-gray-200 dark:border-white/8 bg-white/60 dark:bg-white/[0.03] px-3 py-2.5 transition-colors cursor-default"
               >
-                <p className="text-white font-bold text-lg leading-none">
+                <p className="text-gray-900 dark:text-white font-bold text-lg leading-none">
                   <CountUp to={target} delay={delay + 400} />
                 </p>
-                <p className="text-white/35 text-[10px] mt-0.5">{label}</p>
+                <p className="text-gray-400 dark:text-white/35 text-[10px] mt-0.5">{label}</p>
               </motion.div>
             ))}
           </div>
         </div>
 
-        <p className="text-white/20 text-[11px]">
+        <p className="text-gray-300 dark:text-white/20 text-[11px]">
           Read-only Gmail · No data sold · Free
         </p>
       </div>

@@ -216,20 +216,34 @@ html {
   outline: none !important;
 }
 
-/* Footer branding box — transparent, subtle top divider */
+/* Footer branding box */
 .pidgin-clerk-auth .cl-footer,
 .pidgin-clerk-auth [class*="__footer"],
 .pidgin-clerk-auth [class*="footer"] {
   background: transparent !important;
   border: 0 !important;
-  margin-top: 1.5rem !important;
-  padding-top: 1rem !important;
+  margin-top: 0.5rem !important;
+  padding-top: 0.5rem !important;
 }
 
 .pidgin-clerk-auth .cl-formButtonPrimary {
   min-height: 52px !important;
   height: 52px !important;
   border-radius: 12px !important;
+}
+
+/* Hide ban/block icon on access-restricted page */
+.pidgin-clerk-auth [class*="blockIcon"],
+.pidgin-clerk-auth [class*="BlockIcon"],
+.pidgin-clerk-auth [class*="headerIcon"],
+.pidgin-clerk-auth [class*="HeaderIcon"] {
+  display: none !important;
+}
+
+/* Tighten the gap between main content and footer action link */
+.pidgin-clerk-auth [class*="main"],
+.pidgin-clerk-auth .cl-main {
+  padding-bottom: 0 !important;
 }
 
 @media (max-width: 640px) {
