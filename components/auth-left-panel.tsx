@@ -124,10 +124,10 @@ export function AuthLeftPanel() {
       {/* Content */}
       <div className="relative z-10 flex flex-col h-full p-10 justify-between">
         {/* Logo */}
-        <div className="flex items-center gap-3">
+        <a href="/" className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/pidgin-main.png" alt="Pidgin" className="w-10 h-10" />
-        </div>
+        </a>
 
         {/* Middle */}
         <div className="space-y-6">
@@ -155,7 +155,7 @@ export function AuthLeftPanel() {
           <motion.div
             animate={{ y: [0, -6, 0] }}
             transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-            className="rounded-xl border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-white/[0.04] backdrop-blur-sm p-4 min-h-[168px]"
+            className="rounded-xl border border-gray-200 dark:border-white/[0.07] bg-white/70 dark:bg-white/[0.04] backdrop-blur-sm p-4 min-h-[168px]"
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -246,7 +246,7 @@ export function AuthLeftPanel() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: delay / 1000 + 0.2, duration: 0.45 }}
-                className="rounded-lg border border-gray-200 dark:border-white/8 bg-white/60 dark:bg-white/[0.03] px-3 py-2.5 transition-colors cursor-default"
+                className="rounded-lg border border-gray-200 dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03] px-3 py-2.5 transition-colors cursor-default"
               >
                 <p className="text-gray-900 dark:text-white font-bold text-lg leading-none">
                   <CountUp to={target} delay={delay + 400} />

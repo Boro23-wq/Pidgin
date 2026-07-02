@@ -222,14 +222,25 @@ html {
 .pidgin-clerk-auth [class*="footer"] {
   background: transparent !important;
   border: 0 !important;
-  margin-top: 1rem !important;
+  margin-top: 0 !important;
   padding-top: 0 !important;
 }
 
-/* Remove bottom padding from the card body so footer sits close to last element */
+/* Remove bottom padding from the card body so footer sits tight to last element */
 .pidgin-clerk-auth .cl-card,
-.pidgin-clerk-auth .cl-main {
+.pidgin-clerk-auth .cl-main,
+.pidgin-clerk-auth [class*="__main"],
+.pidgin-clerk-auth [class*="__body"],
+.pidgin-clerk-auth [class*="__content"] {
   padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* The footer action row (Want early access?) */
+.pidgin-clerk-auth [class*="footerAction"],
+.pidgin-clerk-auth .cl-footerAction {
+  margin-top: 1rem !important;
+  padding-top: 0 !important;
 }
 
 .pidgin-clerk-auth .cl-formButtonPrimary {
