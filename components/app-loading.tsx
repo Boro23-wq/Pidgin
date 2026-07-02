@@ -1,9 +1,6 @@
 export default function AppLoading() {
   return (
-    <div
-      className="min-h-screen flex items-center justify-center"
-      style={{ background: "hsl(240 10% 3.9%)" }}
-    >
+    <div className="min-h-screen flex items-center justify-center bg-background">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/pidgin-main.png"
