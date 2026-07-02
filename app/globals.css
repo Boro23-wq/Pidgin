@@ -222,7 +222,7 @@ html {
 .pidgin-clerk-auth [class*="footer"] {
   background: transparent !important;
   border: 0 !important;
-  margin-top: 0 !important;
+  margin-top: 1.25rem !important;
   padding-top: 0 !important;
 }
 
