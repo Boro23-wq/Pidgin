@@ -201,7 +201,19 @@ export async function generateSocialPost(
 8. CTA — Tell them exactly what to do next (follow for more, repost if this helped, DM for X, etc.).
 
 Add 3–5 relevant hashtags at the very end (on their own line).`
-      : "Write a Twitter/X post (max 280 characters, punchy and engaging, include 1-2 relevant emojis and hashtags).";
+      : `Write a high-engagement X (Twitter) post using this structure:
+
+1. HOOK — One punchy opening line that stops the scroll. Use a bold claim, surprising stat, or provocative question. Never start with "I".
+
+2. BODY — 4–8 short punchy lines, each on its own line. Use numbers, specifics, and contrast. Lots of white space. Make every line earn its place.
+
+3. TAKEAWAY — One sharp sentence: the single thing the reader should remember.
+
+4. CTA — Ask an open-ended question to drive replies, or tell them to repost/follow.
+
+5. HASHTAGS — 2–4 relevant hashtags on their own line.
+
+Aim for 500–800 characters. Write with energy and confidence. Use 1–2 emojis max, placed for impact not decoration.`;
 
   const prompt = `${instructions}
 

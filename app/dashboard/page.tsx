@@ -1563,15 +1563,37 @@ function SocialPostPanel({
 
   return (
     <div className="rounded-md border border-border bg-background/40 p-3 space-y-2.5">
-      <div className="flex items-center gap-1.5">
-        {isLi ? (
-          <Linkedin className="w-3.5 h-3.5 text-[#0A66C2]" />
-        ) : (
-          <XIcon className="w-3 h-3 text-foreground" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          {isLi ? (
+            <Linkedin className="w-3.5 h-3.5 text-[#0A66C2]" />
+          ) : (
+            <XIcon className="w-3 h-3 text-foreground" />
+          )}
+          <span className="text-xs font-medium text-muted-foreground">
+            {isLi ? "LinkedIn" : "X"}
+          </span>
+        </div>
+
+        {post && (
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => onCopy(post, `${summaryId}-${platform}`)}
+              title={isCopied ? "Copied!" : "Copy"}
+              className={`p-1 rounded transition-colors ${isCopied ? "text-green-400" : "text-muted-foreground/60 hover:text-foreground"}`}
+            >
+              {isCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              onClick={() => onGenerate(summaryId, platform)}
+              title="Regenerate"
+              disabled={isGenerating}
+              className="p-1 rounded transition-colors text-muted-foreground/60 hover:text-foreground disabled:opacity-40"
+            >
+              {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         )}
-        <span className="text-xs font-medium text-muted-foreground">
-          {isLi ? "LinkedIn" : "X"}
-        </span>
       </div>
 
       {post ? (
@@ -1579,56 +1601,16 @@ function SocialPostPanel({
           <p className="text-xs leading-relaxed text-foreground/80 whitespace-pre-wrap break-words">
             {post}
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[11px] px-2 gap-1"
-              onClick={() => onCopy(post, `${summaryId}-${platform}`)}
-            >
-              {isCopied ? (
-                <>
-                  <CheckCircle2 className="w-3 h-3 text-green-400" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3 h-3" />
-                  Copy
-                </>
-              )}
-            </Button>
-            {!isLi && (
-              <a
-                href={xShareUrl(post)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 text-[11px] px-2 gap-1"
-                >
+          {!isLi && (
+            <div className="flex">
+              <a href={xShareUrl(post)} target="_blank" rel="noopener noreferrer">
+                <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 gap-1">
                   <ExternalLink className="w-3 h-3" />
-                  Share
+                  Share on X
                 </Button>
               </a>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 text-[11px] px-2 gap-1 text-muted-foreground"
-              disabled={isGenerating}
-              onClick={() => onGenerate(summaryId, platform)}
-            >
-              {isGenerating ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <RefreshCw className="w-3 h-3" />
-              )}
-              Regenerate
-            </Button>
-          </div>
+            </div>
+          )}
         </>
       ) : (
         <Button
@@ -1640,12 +1622,12 @@ function SocialPostPanel({
         >
           {isGenerating ? (
             <>
-              <Loader2 className="w-3 h-3 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Generating…
             </>
           ) : (
             <>
-              <Sparkles className="w-3 h-3" />
+              <Sparkles className="w-3.5 h-3.5" />
               Generate
             </>
           )}
@@ -2180,7 +2162,7 @@ function NewsletterCard({
                     className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
                   >
                     Read article
-                    <ExternalLink className="w-3 h-3" />
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 )}
                 <button
@@ -2190,7 +2172,7 @@ function NewsletterCard({
                   }
                   className={`inline-flex items-center gap-1 text-xs transition-colors ${isFlagged ? "text-red-500" : "text-muted-foreground/70 hover:text-red-600"}`}
                 >
-                  <ThumbsDown className="w-3 h-3" />
+                  <ThumbsDown className="w-3.5 h-3.5" />
                   {isFlagged ? "Flagged" : "Inaccurate?"}
                 </button>
               </div>
