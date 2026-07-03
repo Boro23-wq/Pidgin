@@ -1577,6 +1577,11 @@ function SocialPostPanel({
 
         {post && (
           <div className="flex items-center gap-0.5">
+            {!isLi && (
+              <a href={xShareUrl(post)} target="_blank" rel="noopener noreferrer" title="Share on X" className="p-1 rounded transition-colors text-muted-foreground/60 hover:text-foreground">
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
             <button
               onClick={() => onCopy(post, `${summaryId}-${platform}`)}
               title={isCopied ? "Copied!" : "Copy"}
@@ -1601,16 +1606,6 @@ function SocialPostPanel({
           <p className="text-xs leading-relaxed text-foreground/80 whitespace-pre-wrap break-words">
             {post}
           </p>
-          {!isLi && (
-            <div className="flex">
-              <a href={xShareUrl(post)} target="_blank" rel="noopener noreferrer">
-                <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 gap-1">
-                  <ExternalLink className="w-3 h-3" />
-                  Share on X
-                </Button>
-              </a>
-            </div>
-          )}
         </>
       ) : (
         <Button
