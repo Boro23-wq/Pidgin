@@ -6,7 +6,7 @@ import { Linkedin, Sparkles } from "lucide-react";
 
 const STORIES = [
   {
-    source: "The Batch",
+    source: "3 sources",
     time: "2h ago",
     category: "AI & ML",
     catStyle: "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/25",
@@ -14,9 +14,10 @@ const STORIES = [
     snippet:
       "The latest model cuts inference costs significantly while improving multi-step reasoning tasks by a wide margin...",
     hasPost: true,
+    trend: "3rd week running",
   },
   {
-    source: "Morning Brew",
+    source: "1 source",
     time: "4h ago",
     category: "Tech",
     catStyle: "bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border-blue-200 dark:border-blue-500/25",
@@ -24,9 +25,10 @@ const STORIES = [
     snippet:
       "The redesign would replace Siri's core engine, enabling complex multi-turn conversations and on-device reasoning...",
     hasPost: false,
+    trend: null,
   },
   {
-    source: "TLDR Newsletter",
+    source: "2 sources",
     time: "5h ago",
     category: "Startups",
     catStyle: "bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-200 dark:border-purple-500/25",
@@ -34,6 +36,7 @@ const STORIES = [
     snippet:
       "The French AI lab plans to scale infrastructure and expand its enterprise customer base across Europe and North America...",
     hasPost: true,
+    trend: null,
   },
 ];
 
@@ -133,10 +136,10 @@ export function AuthLeftPanel() {
         <div className="space-y-6">
           <div>
             <p className="text-gray-400 dark:text-white/40 text-xs font-semibold uppercase tracking-[0.2em] mb-2">
-              Your digest, today
+              Morning brief
             </p>
             <h2 className="text-gray-900 dark:text-white text-2xl font-bold leading-tight tracking-tight">
-              Every newsletter.
+              Here&apos;s what changed
               <br />
               <span
                 style={{
@@ -146,7 +149,7 @@ export function AuthLeftPanel() {
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                Zero effort.
+                while you were building.
               </span>
             </h2>
           </div>
@@ -196,6 +199,26 @@ export function AuthLeftPanel() {
                 {/* Badges */}
                 <div className="flex items-center gap-2 pt-1">
                   <AnimatePresence>
+                    {story.trend && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.75 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.75 }}
+                        transition={{
+                          delay: 0.12,
+                          type: "spring",
+                          stiffness: 380,
+                          damping: 22,
+                        }}
+                        className="h-6 px-2.5 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center"
+                      >
+                        <span className="text-[10px] text-amber-500 font-medium">
+                          {story.trend}
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <AnimatePresence>
                     {story.hasPost && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.75 }}
@@ -224,7 +247,7 @@ export function AuthLeftPanel() {
                   <div className="h-6 px-2.5 rounded-md bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center gap-1.5">
                     <Sparkles className="w-3 h-3 text-gray-400 dark:text-white/30" />
                     <span className="text-[10px] text-gray-400 dark:text-white/30 font-medium">
-                      Generate X post
+                      Draft X post
                     </span>
                   </div>
                 </div>
@@ -236,9 +259,9 @@ export function AuthLeftPanel() {
           <div className="grid grid-cols-3 gap-3">
             {(
               [
-                [12, "newsletters", 0],
-                [8, "posts ready", 180],
-                [3, "sources", 340],
+                [12, "stories today", 0],
+                [8, "drafts ready", 180],
+                [3, "trending", 340],
               ] as [number, string, number][]
             ).map(([target, label, delay]) => (
               <motion.div
@@ -258,7 +281,7 @@ export function AuthLeftPanel() {
         </div>
 
         <p className="text-gray-300 dark:text-white/20 text-[11px]">
-          Read-only Gmail · No data sold · Free
+          Read-only Gmail · No data sold · Free during alpha
         </p>
       </div>
     </div>

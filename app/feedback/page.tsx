@@ -23,7 +23,7 @@ function FeedbackContent() {
               <h1 className="text-lg font-semibold">Thanks for the feedback</h1>
               <p className="text-sm text-muted-foreground">
                 {rating === "up"
-                  ? "Glad the digest is hitting the mark."
+                  ? "Glad the brief is hitting the mark."
                   : "We'll use this to make it better."}
               </p>
             </div>

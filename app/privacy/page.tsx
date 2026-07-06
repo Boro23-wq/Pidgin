@@ -27,7 +27,7 @@ export default function PrivacyPage() {
         {/* Intro */}
         <div className="mb-10 p-5 rounded-2xl bg-secondary/40 border border-border/50">
           <p className="text-sm leading-relaxed text-foreground/80">
-            Pidgin is a newsletter digest tool. We access your Gmail to find newsletter emails, summarize them with AI, and deliver a daily digest. We don't sell your data, ever. This page explains exactly what we collect and why.
+            Pidgin is a Founder Intelligence System. We access your Gmail to find newsletter emails, turn them into a ranked daily brief with AI, and deliver what changed and why it matters. We don't sell your data, ever. This page explains exactly what we collect and why.
           </p>
         </div>
 
@@ -37,9 +37,10 @@ export default function PrivacyPage() {
             <h2 className="text-base font-semibold mb-3">What we collect</h2>
             <ul className="space-y-2 text-foreground/75">
               <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Account information</strong> — your name and email address, collected via Clerk when you sign up.</span></li>
-              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Gmail access</strong> — read-only access to your inbox to identify and fetch newsletter emails. We never read personal emails, only newsletters from known senders.</span></li>
-              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Newsletter content</strong> — the body of newsletter emails is sent to Anthropic's Claude API to generate summaries. Content is not stored by Anthropic for training.</span></li>
-              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Summaries</strong> — AI-generated summaries, key points, and category tags are stored in our database (Supabase) and kept for 7 days, then automatically deleted.</span></li>
+              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Gmail access</strong> — read-only access to your inbox to identify and fetch newsletter emails. We never read personal emails, drafts, or sent mail — only newsletters. There's no manual sender allow-list: every newsletter we detect is scanned, and our ranking (not a pre-approved sender list) decides what surfaces in your brief. You can block any sender at any time.</span></li>
+              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Newsletter content</strong> — the body of newsletter emails is sent to Anthropic's Claude API to generate summaries, "why it matters" and "what to do" framing, significance ratings, and topic clustering (so the same story from different newsletters doesn't show up twice). Content is not stored by Anthropic for training.</span></li>
+              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Newsletter body</strong> — the original email content is only used to generate your brief and is cleared from our database after 7 days.</span></li>
+              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Brief history</strong> — AI-generated summaries, key points, and category tags are kept for up to 180 days (so we can recognize recurring stories over time), then automatically deleted.</span></li>
               <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span><strong className="text-foreground">Usage data</strong> — anonymous product analytics via PostHog (pages visited, features used). No personal data is attached.</span></li>
             </ul>
           </section>
@@ -56,8 +57,9 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-base font-semibold mb-3">How we use your data</h2>
             <ul className="space-y-2 text-foreground/75">
-              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span>To fetch and summarize your newsletters</span></li>
-              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span>To send your daily digest email</span></li>
+              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span>To fetch and analyze your newsletters into a ranked brief</span></li>
+              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span>To recognize when a topic recurs over time (trend memory)</span></li>
+              <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span>To send your daily brief email, when something clears the bar</span></li>
               <li className="flex gap-2"><span className="text-primary mt-0.5 flex-shrink-0">▸</span><span>To improve the product based on anonymous usage patterns</span></li>
             </ul>
             <p className="mt-3 text-foreground/75">We do not sell, rent, or share your personal data with third parties for marketing purposes.</p>
@@ -81,7 +83,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold mb-3">Data retention</h2>
-            <p className="text-foreground/75">Newsletter summaries are automatically deleted after 7 days unless you bookmark them. Bookmarked items are kept until you delete them or close your account. Your account data is deleted within 30 days of account deletion.</p>
+            <p className="text-foreground/75">The original newsletter content is cleared after 7 days. The summary, key points, and topic history derived from it are kept for up to 180 days (unless you bookmark the story, in which case they're kept until you delete them) — this is what lets us notice when something you care about keeps coming back. Your account data is deleted within 30 days of account deletion.</p>
           </section>
 
           <section>

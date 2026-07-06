@@ -6,7 +6,6 @@ import {
   Check,
   ChevronDown,
   Linkedin,
-  Mail,
   RefreshCw,
   Search,
   Sparkles,
@@ -182,28 +181,22 @@ const stagger = (delay = 0.08) => ({
 // How it works — illustrated step cards (auto-looping)
 // ---------------------------------------------------------------------------
 
-function ConnectIllustration() {
+function ConnectIllustration({ active }: { active: boolean }) {
   const [phase, setPhase] = useState<"idle" | "loading" | "done">("idle");
 
   useEffect(() => {
-    const ts: ReturnType<typeof setTimeout>[] = [];
-    const add = (fn: () => void, ms: number) => {
-      const t = setTimeout(fn, ms);
-      ts.push(t);
-      return t;
-    };
-    function loop(offset = 0) {
-      add(() => setPhase("idle"), offset);
-      add(() => setPhase("loading"), offset + 1400);
-      add(() => setPhase("done"), offset + 2500);
-      add(() => loop(), offset + 5200);
+    if (!active) {
+      setPhase("idle");
+      return;
     }
-    loop(900);
+    const ts: ReturnType<typeof setTimeout>[] = [];
+    ts.push(setTimeout(() => setPhase("loading"), 900));
+    ts.push(setTimeout(() => setPhase("done"), 2000));
     return () => ts.forEach(clearTimeout);
-  }, []);
+  }, [active]);
 
   return (
-    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 space-y-2 text-left">
+    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 space-y-2 text-left min-h-[152px] flex flex-col justify-center">
       <div className="flex items-center gap-2">
         <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center shrink-0">
           <span
@@ -302,7 +295,7 @@ function ConnectIllustration() {
   );
 }
 
-function AIReadsIllustration() {
+function AIReadsIllustration({ active }: { active: boolean }) {
   const [count, setCount] = useState(0);
   const bullets = [
     "OpenAI cuts inference costs 40%",
@@ -311,36 +304,34 @@ function AIReadsIllustration() {
   ];
 
   useEffect(() => {
-    const ts: ReturnType<typeof setTimeout>[] = [];
-    const add = (fn: () => void, ms: number) => {
-      const t = setTimeout(fn, ms);
-      ts.push(t);
-    };
-    function loop(offset = 0) {
-      add(() => setCount(0), offset);
-      add(() => setCount(1), offset + 600);
-      add(() => setCount(2), offset + 1200);
-      add(() => setCount(3), offset + 1800);
-      add(() => loop(), offset + 4600);
+    if (!active) {
+      setCount(0);
+      return;
     }
-    loop(700);
+    const ts: ReturnType<typeof setTimeout>[] = [];
+    ts.push(setTimeout(() => setCount(1), 500));
+    ts.push(setTimeout(() => setCount(2), 1000));
+    ts.push(setTimeout(() => setCount(3), 1500));
     return () => ts.forEach(clearTimeout);
-  }, []);
+  }, [active]);
 
   return (
-    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 text-left">
+    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 text-left min-h-[152px] flex flex-col justify-center">
       <div className="flex items-center gap-2 pb-2 mb-2 border-b border-border/30">
-        <div className="w-5 h-5 rounded bg-amber-400/15 flex items-center justify-center shrink-0">
-          <Mail className="w-3 h-3 text-amber-500" />
+        <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center shrink-0">
+          <Sparkles className="w-3 h-3 text-primary" />
         </div>
-        <span className="text-[10px] text-muted-foreground">Morning Brew</span>
-        <div className="ml-auto flex items-center gap-1 bg-primary/10 rounded px-1.5 py-0.5">
-          <Sparkles className="w-2.5 h-2.5 text-primary" />
-          <span className="text-[9px] text-primary font-medium">AI</span>
+        <span className="text-[10px] text-foreground/65 font-medium">
+          Top story
+        </span>
+        <div className="ml-auto flex items-center gap-1 bg-amber-500/10 rounded px-1.5 py-0.5">
+          <span className="text-[9px] text-amber-500 font-medium">
+            3rd week running
+          </span>
         </div>
       </div>
       <p className="text-[9px] text-muted-foreground/50 uppercase tracking-widest font-semibold mb-2">
-        Key points
+        What changed
       </p>
       <div className="space-y-1.5 min-h-[54px]">
         {bullets.map((pt, i) => (
@@ -365,7 +356,7 @@ function AIReadsIllustration() {
   );
 }
 
-function PostsIllustration() {
+function PostsIllustration({ active }: { active: boolean }) {
   const lines = [
     "Just read: OpenAI cut costs by 40% —",
     "finally makes production AI viable",
@@ -376,30 +367,23 @@ function PostsIllustration() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const ts: ReturnType<typeof setTimeout>[] = [];
-    const add = (fn: () => void, ms: number) => {
-      const t = setTimeout(fn, ms);
-      ts.push(t);
-    };
-    function loop(offset = 0) {
-      add(() => {
-        setShown(0);
-        setActions(false);
-        setCopied(false);
-      }, offset);
-      add(() => setShown(1), offset + 500);
-      add(() => setShown(2), offset + 1100);
-      add(() => setShown(3), offset + 1700);
-      add(() => setActions(true), offset + 2100);
-      add(() => setCopied(true), offset + 3400);
-      add(() => loop(), offset + 5800);
+    if (!active) {
+      setShown(0);
+      setActions(false);
+      setCopied(false);
+      return;
     }
-    loop(600);
+    const ts: ReturnType<typeof setTimeout>[] = [];
+    ts.push(setTimeout(() => setShown(1), 400));
+    ts.push(setTimeout(() => setShown(2), 900));
+    ts.push(setTimeout(() => setShown(3), 1400));
+    ts.push(setTimeout(() => setActions(true), 1800));
+    ts.push(setTimeout(() => setCopied(true), 2700));
     return () => ts.forEach(clearTimeout);
-  }, []);
+  }, [active]);
 
   return (
-    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 text-left">
+    <div className="mt-5 rounded-lg border border-border/40 bg-background/60 p-3 text-left min-h-[152px] flex flex-col justify-center">
       <div className="flex items-center gap-1.5 mb-2">
         <Linkedin className="w-3.5 h-3.5 text-[#0077B5]" />
         <span className="text-[10px] font-semibold text-foreground/65">
@@ -446,10 +430,16 @@ function PostsIllustration() {
 // ---------------------------------------------------------------------------
 
 function InboxIllustration({ active }: { active: boolean }) {
+  // Two different newsletters covering the same real-world event collapse
+  // into one topic instead of showing up twice — grouped by story, not sender.
   const rows = [
-    { name: "Morning Brew", real: true },
-    { name: "TLDR Newsletter", real: true },
-    { name: "Job Alert: SWE @ Acme", real: false },
+    { name: "OpenAI pricing shift", merged: true },
+    { name: "Data center outage", merged: false },
+    {
+      name: "OpenAI pricing shift (2nd source)",
+      merged: true,
+      duplicate: true,
+    },
   ];
   return (
     <div className="pt-3 border-t border-border/25 space-y-1 mt-3">
@@ -457,19 +447,28 @@ function InboxIllustration({ active }: { active: boolean }) {
         <motion.div
           key={row.name}
           animate={
-            !row.real && active ? { opacity: 0, x: 12 } : { opacity: 1, x: 0 }
+            row.duplicate && active
+              ? { opacity: 0, x: 12, height: 0 }
+              : { opacity: 1, x: 0, height: "auto" }
           }
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className={`flex items-center gap-2 h-5 px-1.5 rounded transition-colors duration-300 ${active && row.real ? "border-l-2 border-primary/50 bg-primary/5 pl-1" : ""}`}
+          className={`flex items-center gap-2 h-5 px-1.5 rounded transition-colors duration-300 ${active && row.merged && !row.duplicate ? "border-l-2 border-primary/50 bg-primary/5 pl-1" : ""}`}
         >
           <div
-            className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-300 ${row.real ? (active ? "bg-primary" : "bg-primary/40") : "bg-muted-foreground/20"}`}
+            className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-300 ${row.merged ? (active ? "bg-primary" : "bg-primary/40") : "bg-muted-foreground/30"}`}
           />
           <span
-            className={`text-[10px] truncate ${row.real ? "text-foreground/60" : "text-muted-foreground/30 line-through"}`}
+            className={`text-[10px] truncate ${row.duplicate ? "text-muted-foreground/30" : "text-foreground/60"}`}
           >
-            {row.name}
+            {row.duplicate && !active
+              ? row.name
+              : row.name.replace(" (2nd source)", "")}
           </span>
+          {row.merged && !row.duplicate && active && (
+            <span className="ml-auto text-[8px] text-primary/70 font-medium shrink-0">
+              2 sources
+            </span>
+          )}
         </motion.div>
       ))}
     </div>
@@ -477,10 +476,9 @@ function InboxIllustration({ active }: { active: boolean }) {
 }
 
 function SummaryIllustration({ active }: { active: boolean }) {
-  const points = [
-    "Cost reduction confirmed",
-    "API live immediately",
-    "No quality loss",
+  const rows = [
+    { label: "Why it matters", text: "Affects your SLA commitments" },
+    { label: "What to do", text: "Audit your backups this week" },
   ];
   return (
     <div className="pt-3 border-t border-border/25 min-h-[54px] mt-3">
@@ -509,20 +507,21 @@ function SummaryIllustration({ active }: { active: boolean }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="space-y-1.5"
+            className="space-y-2"
           >
-            {points.map((pt, i) => (
+            {rows.map((r, i) => (
               <motion.div
-                key={pt}
+                key={r.label}
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.09, duration: 0.22 }}
-                className="flex items-start gap-1.5"
+                transition={{ delay: i * 0.12, duration: 0.22 }}
               >
-                <div className="w-1 h-1 rounded-full bg-primary mt-[5px] shrink-0" />
-                <span className="text-[10px] text-foreground/65 leading-tight">
-                  {pt}
-                </span>
+                <p className="text-[8px] uppercase tracking-widest font-semibold text-primary/70">
+                  {r.label}
+                </p>
+                <p className="text-[10px] text-foreground/65 leading-tight">
+                  {r.text}
+                </p>
               </motion.div>
             ))}
           </motion.div>
@@ -639,7 +638,7 @@ function SearchIllustration({ active }: { active: boolean }) {
               OpenAI cuts costs by 40%
             </p>
             <p className="text-[9px] text-muted-foreground/45">
-              Morning Brew · 2d ago
+              3 sources · 2d ago
             </p>
           </motion.div>
         )}
@@ -648,7 +647,7 @@ function SearchIllustration({ active }: { active: boolean }) {
   );
 }
 
-function BlockIllustration({ active }: { active: boolean }) {
+function CuratedIllustration({ active }: { active: boolean }) {
   return (
     <div className="pt-3 border-t border-border/25 mt-3">
       <div className="relative overflow-hidden h-7 rounded-md">
@@ -657,16 +656,10 @@ function BlockIllustration({ active }: { active: boolean }) {
           transition={{ duration: 0.3 }}
           className="absolute inset-0 flex items-center gap-2 px-2 bg-secondary/40 rounded-md"
         >
-          <Mail className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+          <Sparkles className="w-3 h-3 text-muted-foreground/40 shrink-0" />
           <span className="text-[10px] text-foreground/50">
-            promo@company.com
+            Minor UI update roundup
           </span>
-          <motion.div
-            animate={active ? { opacity: 0 } : { opacity: 1 }}
-            className="ml-auto flex items-center gap-1 text-muted-foreground/30"
-          >
-            <Ban className="w-3 h-3" />
-          </motion.div>
         </motion.div>
         <AnimatePresence>
           {active && (
@@ -677,8 +670,7 @@ function BlockIllustration({ active }: { active: boolean }) {
               transition={{ delay: 0.2 }}
               className="absolute inset-0 flex items-center justify-center gap-1.5 text-muted-foreground/45"
             >
-              <Ban className="w-3 h-3 text-red-400/60" />
-              <span className="text-[10px]">Sender blocked</span>
+              <span className="text-[10px]">Not important enough to send</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -687,40 +679,40 @@ function BlockIllustration({ active }: { active: boolean }) {
   );
 }
 
-function SyncIllustration({ active }: { active: boolean }) {
-  const [spinning, setSpinning] = useState(false);
+function TrendIllustration({ active }: { active: boolean }) {
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     if (!active) {
-      setSpinning(false);
+      setChecking(false);
       return;
     }
-    setSpinning(true);
-    const t = setTimeout(() => setSpinning(false), 700);
+    setChecking(true);
+    const t = setTimeout(() => setChecking(false), 700);
     return () => clearTimeout(t);
   }, [active]);
 
   return (
     <div className="pt-3 border-t border-border/25 flex items-center gap-2 mt-3">
       <motion.div
-        animate={{ rotate: spinning ? 360 : 0 }}
+        animate={{ rotate: checking ? 360 : 0 }}
         transition={{ duration: 0.7, ease: "easeInOut" }}
       >
         <RefreshCw className="w-3.5 h-3.5 text-muted-foreground/40" />
       </motion.div>
       <span className="text-[10px] text-muted-foreground/40">
-        {active ? "Syncing…" : "Last synced 2h ago"}
+        {active ? "Checking history…" : "Last seen 2 weeks ago"}
       </span>
       <AnimatePresence>
-        {active && !spinning && (
+        {active && !checking && (
           <motion.div
             initial={{ opacity: 0, scale: 0.7, x: -4 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0 }}
             transition={{ type: "spring", stiffness: 500, damping: 22 }}
-            className="ml-auto px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-[9px] font-semibold"
+            className="ml-auto px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[9px] font-semibold"
           >
-            +3 new
+            3rd week running
           </motion.div>
         )}
       </AnimatePresence>
@@ -768,26 +760,42 @@ function LandingPage() {
   const accessRoute = inviteOnly ? "/waitlist" : "/sign-up";
   const accessLabel = inviteOnly ? "Request access" : "Get started";
 
-  const steps = [
+  const steps: {
+    n: string;
+    title: string;
+    body: string;
+    illustration: (active: boolean) => React.ReactNode;
+  }[] = [
     {
       n: "01",
       title: "Connect Gmail",
       body: "Authorize read-only access in 30 seconds. We never send, delete, or modify anything.",
-      illustration: <ConnectIllustration />,
+      illustration: (a) => <ConnectIllustration active={a} />,
     },
     {
       n: "02",
-      title: "AI reads every issue so you don't have to",
-      body: "Pidgin filters out noise and uses Claude to distill each newsletter into key points — no skimming.",
-      illustration: <AIReadsIllustration />,
+      title: "We scan everything",
+      body: "Every newsletter gets read. Corroboration, recurrence, and significance decide what surfaces.",
+      illustration: (a) => <AIReadsIllustration active={a} />,
     },
     {
       n: "03",
-      title: "Get your briefing + post drafts, daily",
-      body: "A digest email every evening plus one-click LinkedIn & X drafts, ready to copy and share.",
-      illustration: <PostsIllustration />,
+      title: "Get a ranked brief on why it matters",
+      body: "Top stories first, trending topics called out, everything else still there if you want it.",
+      illustration: (a) => <PostsIllustration active={a} />,
     },
   ];
+
+  // Drives the "how it works" cards as one connected sequence — step 1 plays,
+  // then 2, then 3, repeat — instead of three independently-looping demos.
+  const [activeStep, setActiveStep] = useState(0);
+  useEffect(() => {
+    const t = setInterval(
+      () => setActiveStep((s) => (s + 1) % steps.length),
+      3600,
+    );
+    return () => clearInterval(t);
+  }, [steps.length]);
 
   const features: {
     icon: React.ReactNode;
@@ -796,40 +804,40 @@ function LandingPage() {
     illustration: (active: boolean) => React.ReactNode;
   }[] = [
     {
-      icon: <Mail className="w-4 h-4" />,
-      title: "No more newsletter guilt",
-      desc: "Filters out job alerts, bank emails, and event invites. Only real newsletters make it through.",
+      icon: <Sparkles className="w-4 h-4" />,
+      title: "Organized by story, not sender",
+      desc: "Two newsletters covering the same event merge into one card. You don't care where it came from just that you didn't miss it.",
       illustration: (a) => <InboxIllustration active={a} />,
     },
     {
-      icon: <Sparkles className="w-4 h-4" />,
-      title: "Key points in 10 seconds per issue",
-      desc: "Claude distills each newsletter into bullet points and a plain-English summary — no skimming needed.",
+      icon: <RefreshCw className="w-4 h-4" />,
+      title: "Trend memory",
+      desc: 'Pidgin remembers. When something keeps coming back, you\'ll know — "3rd week running," not just another headline.',
+      illustration: (a) => <TrendIllustration active={a} />,
+    },
+    {
+      icon: <Zap className="w-4 h-4" />,
+      title: "Why it matters, not just what happened",
+      desc: 'Every story comes with the sharper "so what" and a concrete next step and not just a summary.',
       illustration: (a) => <SummaryIllustration active={a} />,
     },
     {
+      icon: <Ban className="w-4 h-4" />,
+      title: "Curated, not exhaustive",
+      desc: "Some days it's one story worth your attention, some days it's five. Never padded to hit a number. Some days no email goes out at all.",
+      illustration: (a) => <CuratedIllustration active={a} />,
+    },
+    {
       icon: <Linkedin className="w-4 h-4" />,
-      title: "Stay visible without writing from scratch",
-      desc: "One-click LinkedIn and X drafts generated from every newsletter. Stay consistent without the effort.",
+      title: "Ready-to-share drafts",
+      desc: "One-click LinkedIn and X drafts generated from the stories worth talking about. Stay visible without writing from scratch.",
       illustration: (a) => <SocialIllustration active={a} />,
     },
     {
       icon: <Search className="w-4 h-4" />,
       title: "Search & bookmark",
-      desc: "Full-text search across all summaries. Bookmark issues to revisit when you actually have time.",
+      desc: "Full-text search across every story. Bookmark the ones you want to revisit when you actually have time.",
       illustration: (a) => <SearchIllustration active={a} />,
-    },
-    {
-      icon: <Ban className="w-4 h-4" />,
-      title: "Block the noise",
-      desc: "Mute any sender with one click — they never show up in your digest again.",
-      illustration: (a) => <BlockIllustration active={a} />,
-    },
-    {
-      icon: <RefreshCw className="w-4 h-4" />,
-      title: "On-demand sync",
-      desc: "Sync whenever you want. Pidgin fetches the latest from Gmail in seconds.",
-      illustration: (a) => <SyncIllustration active={a} />,
     },
   ];
 
@@ -928,7 +936,7 @@ function LandingPage() {
             variants={fadeUp}
             className="text-5xl sm:text-6xl lg:text-[5.5rem] font-bold tracking-tight leading-[1.07] mb-5"
           >
-            All the signal.
+            Here&apos;s what changed
             <br />
             <span
               className="bg-clip-text text-transparent"
@@ -937,19 +945,17 @@ function LandingPage() {
                   "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
               }}
             >
-              None of the noise.
+              while you were building.
             </span>
-            <br />
-            Delivered daily.
           </motion.h1>
 
           <motion.p
             variants={fadeUp}
             className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed"
           >
-            Pidgin turns your newsletter backlog into a daily briefing — key
-            points, social posts ready to share, zero skimming. Built for
-            founders who are already too busy.
+            Pidgin is a Founder Intelligence System turning your newsletters
+            into a ranked daily brief: what changed, why it matters, what to do
+            about it.
           </motion.p>
 
           <motion.div
@@ -996,6 +1002,148 @@ function LandingPage() {
         </motion.div>
       </section>
 
+      {/* ── Problem ─────────────────────────────────────────────────────────── */}
+      <section className="border-t border-border/50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.45 }}
+            className="text-center mb-10"
+          >
+            <p className="text-2xl sm:text-3xl font-bold tracking-tight max-w-2xl mx-auto leading-snug">
+              You&apos;re not overwhelmed by information.{" "}
+              <span
+                className="bg-clip-text text-transparent"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 70%) 100%)",
+                }}
+              >
+                You&apos;re overwhelmed by not knowing what matters.
+              </span>
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-40px" }}
+            variants={stagger(0.08)}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+          >
+            {[
+              {
+                lead: "You read 10–50 newsletters…",
+                tail: "but forget most of it.",
+              },
+              {
+                lead: "You see trends changing…",
+                tail: "but don't know what to do.",
+              },
+              {
+                lead: "You consume daily content…",
+                tail: "but rarely act on it.",
+              },
+              {
+                lead: "You have ideas…",
+                tail: "but no system to extract them.",
+              },
+            ].map((p) => (
+              <motion.div
+                key={p.lead}
+                variants={fadeUp}
+                whileHover={{ y: -3 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                className="group relative rounded-xl border border-border/60 bg-card/50 p-5 overflow-hidden cursor-default hover:border-primary/30 hover:bg-card/70 transition-colors duration-300"
+              >
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <p className="text-sm text-foreground/80 leading-relaxed">
+                  {p.lead}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed transition-colors duration-300 group-hover:text-foreground/60">
+                  {p.tail}
+                </p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Category shift ──────────────────────────────────────────────────── */}
+      <section className="border-t border-border/50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.45 }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-xs font-semibold tracking-widest text-muted-foreground/60 uppercase mb-3">
+              A new category
+            </h2>
+            <p className="text-2xl sm:text-3xl font-bold tracking-tight">
+              Founder{" "}
+              <span
+                className="bg-clip-text text-transparent"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 70%) 100%)",
+                }}
+              >
+                Intelligence Systems.
+              </span>
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-40px" }}
+            variants={stagger(0.07)}
+            className="max-w-lg mx-auto rounded-xl border border-border/60 bg-card/50 overflow-hidden"
+          >
+            <div className="grid grid-cols-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 border-b border-border/50">
+              <div className="px-4 py-3 border-r border-border/50">
+                Old tools
+              </div>
+              <div className="px-4 py-3 text-primary">Pidgin</div>
+            </div>
+            {[
+              ["News readers", "Decision system"],
+              ["Summarizers", "Insight engine"],
+              ["Productivity tools", "Thinking layer"],
+              ["AI writers", "Founder output system"],
+            ].map(([oldT, newT], i) => (
+              <motion.div
+                key={oldT}
+                variants={fadeUp}
+                className={`group grid grid-cols-2 text-sm hover:bg-primary/5 transition-colors duration-200 ${i > 0 ? "border-t border-border/40" : ""}`}
+              >
+                <div className="px-4 py-3 border-r border-border/40 text-muted-foreground/60">
+                  {oldT}
+                </div>
+                <div className="px-4 py-3 text-foreground/85 font-medium transition-colors duration-200 group-hover:text-primary">
+                  {newT}
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.4, delay: 0.15 }}
+            className="text-center text-sm text-muted-foreground mt-8"
+          >
+            Pidgin doesn&apos;t help you read faster. It helps you think better.
+          </motion.p>
+        </div>
+      </section>
+
       {/* ── How it works ────────────────────────────────────────────────────── */}
       <section className="border-t border-border/50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
@@ -1010,26 +1158,41 @@ function LandingPage() {
           </motion.h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {steps.map(({ n, title, body, illustration }, i) => (
-              <motion.div
-                key={n}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.45, delay: i * 0.1 }}
-                className="group rounded-xl border border-border/60 bg-card/50 p-5 flex flex-col overflow-hidden relative"
-              >
-                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <span className="text-xs font-mono text-muted-foreground/35 mb-3">
-                  {n}
-                </span>
-                <h3 className="text-sm font-semibold mb-1.5">{title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {body}
-                </p>
-                {illustration}
-              </motion.div>
-            ))}
+            {steps.map(({ n, title, body, illustration }, i) => {
+              const isActive = activeStep === i;
+              return (
+                <motion.div
+                  key={n}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.45, delay: i * 0.1 }}
+                  animate={{
+                    borderColor: isActive
+                      ? "hsl(var(--primary) / 0.5)"
+                      : "hsl(var(--border) / 0.6)",
+                    backgroundColor: isActive
+                      ? "hsl(var(--card) / 0.85)"
+                      : "hsl(var(--card) / 0.5)",
+                  }}
+                  className="group rounded-xl border p-5 flex flex-col overflow-hidden relative"
+                >
+                  <div
+                    className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 ${isActive ? "via-primary/60 opacity-100" : "via-primary/25 opacity-0 group-hover:opacity-100"}`}
+                  />
+                  <span
+                    className={`text-xs font-mono mb-3 transition-colors duration-300 ${isActive ? "text-primary" : "text-muted-foreground/35"}`}
+                  >
+                    {n}
+                  </span>
+                  <h3 className="text-sm font-semibold mb-1.5">{title}</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {body}
+                  </p>
+                  {illustration(isActive)}
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -1125,20 +1288,27 @@ function LandingPage() {
                   Alpha · Limited seats
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1 mt-2">Alpha</p>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1 mt-2">
+                Alpha
+              </p>
               <div className="flex items-baseline gap-1 mb-4">
                 <span className="text-4xl font-bold">Free</span>
-                <span className="text-sm text-muted-foreground/50">while seats last</span>
+                <span className="text-sm text-muted-foreground/50">
+                  while seats last
+                </span>
               </div>
               <ul className="space-y-2 mb-6 flex-1">
                 {[
-                  "Up to 20 newsletter sources",
-                  "Daily digest email",
-                  "AI summaries + key points",
+                  "All your newsletters, automatically",
+                  "Daily Morning Brief email",
+                  "Trend memory across weeks",
                   "LinkedIn & X post drafts",
-                  "Shareable summary cards",
+                  "Shareable story cards",
                 ].map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-foreground/70">
+                  <li
+                    key={f}
+                    className="flex items-start gap-2 text-sm text-foreground/70"
+                  >
                     <Check className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
                     {f}
                   </li>
@@ -1153,7 +1323,8 @@ function LandingPage() {
                 {inviteOnly ? "Join the alpha ->" : "Get started ->"}
               </motion.button>
               <p className="text-[10px] text-muted-foreground/35 text-center mt-3">
-                Free during alpha. 60 days notice before any paid tier goes live.
+                Free during alpha. 60 days notice before any paid tier goes
+                live.
               </p>
             </motion.div>
 
@@ -1165,20 +1336,25 @@ function LandingPage() {
               transition={{ duration: 0.45, delay: 0.1 }}
               className="rounded-xl border border-border/50 bg-card/40 p-6 flex flex-col opacity-70"
             >
-              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1">Pro</p>
+              <p className="text-xs text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1">
+                Pro
+              </p>
               <div className="flex items-baseline gap-1 mb-4">
                 <span className="text-4xl font-bold">$12</span>
                 <span className="text-sm text-muted-foreground/50">/mo</span>
               </div>
               <ul className="space-y-2 mb-6 flex-1">
                 {[
-                  "Unlimited newsletter sources",
+                  "Founder-mode personalization",
                   "Priority Gmail sync",
-                  "Custom digest time",
+                  "Custom brief time",
                   "Everything in alpha",
                   "Early access to new features",
                 ].map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-foreground/50">
+                  <li
+                    key={f}
+                    className="flex items-start gap-2 text-sm text-foreground/50"
+                  >
                     <Check className="w-3.5 h-3.5 text-muted-foreground/40 mt-0.5 shrink-0" />
                     {f}
                   </li>
@@ -1211,7 +1387,7 @@ function LandingPage() {
             Ready to start?
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3 leading-tight">
-            Your competitors are reading this stuff.{" "}
+            Your competitors are missing this.{" "}
             <span
               className="bg-clip-text text-transparent"
               style={{
@@ -1219,7 +1395,7 @@ function LandingPage() {
                   "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
               }}
             >
-              You can skim it in 30 seconds.
+              You won&apos;t.
             </span>
           </h2>
           <p className="text-muted-foreground text-sm mb-7">
@@ -1263,8 +1439,18 @@ function LandingPage() {
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground/50">
             <span>Read-only Gmail · No spam · No data sold</span>
-            <a href="/privacy" className="hover:text-muted-foreground transition-colors">Privacy</a>
-            <a href="/terms" className="hover:text-muted-foreground transition-colors">Terms</a>
+            <a
+              href="/privacy"
+              className="hover:text-muted-foreground transition-colors"
+            >
+              Privacy
+            </a>
+            <a
+              href="/terms"
+              className="hover:text-muted-foreground transition-colors"
+            >
+              Terms
+            </a>
           </div>
         </div>
       </footer>
