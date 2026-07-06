@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePostHog } from "posthog-js/react";
+import confetti from "canvas-confetti";
 import {
   Search,
   RefreshCw,
@@ -32,6 +33,7 @@ import {
   Share2,
   MessageSquare,
   CheckCheck,
+  TrendingUp,
 } from "lucide-react";
 
 function XIcon({ className }: { className?: string }) {
@@ -57,12 +59,6 @@ import { OnboardingFlow } from "@/components/onboarding-flow";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-interface DigestSource {
-  source_email: string;
-  priority: number;
-  enabled: boolean;
-}
-
 interface Summary {
   id: string;
   created_at: string;
@@ -77,8 +73,18 @@ interface Summary {
   source_email_id: string;
   source_url: string;
   category: string;
+  topic_key: string | null;
+  why_it_matters: string | null;
+  what_to_do: string | null;
+  significance: string | null;
   is_bookmarked: boolean;
   is_read: boolean;
+}
+
+interface TopicTrend {
+  weeksSeenCount: number;
+  occurrencesCount: number;
+  lastTitle: string | null;
 }
 
 interface EmailPreview {
@@ -141,19 +147,19 @@ function FilterSelect({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="h-7 flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 pl-2 pr-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-inset focus:border-primary/60"
+        className="h-7 flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 pl-2 pr-2 text-xs text-foreground whitespace-nowrap flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-inset focus:border-primary/60"
       >
         {label}
         <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-full rounded-md border border-border bg-popover shadow-lg py-1">
+        <div className="absolute left-0 top-full mt-1 z-50 inline-flex flex-col rounded-md border border-border bg-popover shadow-lg py-1">
           {options.map((o) => (
             <button
               key={o.value}
               type="button"
               onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-secondary/60 transition-colors ${value === o.value ? "text-primary font-medium" : "text-foreground"}`}
+              className={`text-left px-3 py-1.5 text-xs whitespace-nowrap hover:bg-secondary/60 transition-colors ${value === o.value ? "text-primary font-medium" : "text-foreground"}`}
             >
               {o.label}
             </button>
@@ -252,6 +258,14 @@ function extractSenderDomain(email: string): string {
   const emailMatch = email.match(/<([^>]+)>/) || email.match(/(\S+@\S+)/);
   const addr = emailMatch?.[1] ?? email;
   return addr.split("@")[1]?.replace(/[>)]+$/, "") ?? "";
+}
+
+// Compact source attribution for a topic card — up to 2 sender names, then a
+// "+N" overflow rather than listing every newsletter that covered the story.
+function sourceLabel(group: TopicGroup): string {
+  const names = Array.from(new Set(group.articles.map((a) => extractSenderName(a.source_email))));
+  if (names.length <= 2) return names.join(", ");
+  return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
 }
 
 // Heuristic: returns true for emails that are clearly NOT newsletters
@@ -839,12 +853,42 @@ function FeedbackToast({ onDone }: { onDone: () => void }) {
 // Digest opt-in toast (shown after first ever sync)
 // ---------------------------------------------------------------------------
 function DigestOptInToast({
-  onSetup,
+  onEnabled,
   onDismiss,
 }: {
-  onSetup: () => void;
+  onEnabled: () => void;
   onDismiss: () => void;
 }) {
+  const [enabling, setEnabling] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleEnable = async () => {
+    setEnabling(true);
+    try {
+      await fetch("/api/digest/enable", { method: "POST" });
+    } catch {
+      // best-effort — if this fails, the toast will just reappear next load
+    }
+    setEnabling(false);
+    setSubscribed(true);
+  };
+
+  // Fire confetti once, when the success state first mounts, then auto-close
+  // after the user has had a moment to read the confirmation.
+  useEffect(() => {
+    if (!subscribed) return;
+    confetti({
+      particleCount: 30,
+      spread: 50,
+      startVelocity: 22,
+      scalar: 0.7,
+      ticks: 150,
+      origin: { x: 0.82, y: 0.85 },
+    });
+    const t = setTimeout(onEnabled, 3200);
+    return () => clearTimeout(t);
+  }, [subscribed, onEnabled]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16, scale: 0.97 }}
@@ -853,292 +897,51 @@ function DigestOptInToast({
       transition={{ type: "spring", damping: 28, stiffness: 380 }}
       className="fixed bottom-5 right-5 z-50 w-[300px] rounded-2xl border border-border bg-card shadow-2xl shadow-black/20 px-4 py-4"
     >
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-2">
+      {subscribed ? (
+        <div className="space-y-1.5 text-center py-1">
+          <div className="text-2xl leading-none mb-1">🎉</div>
           <p className="text-sm font-semibold leading-snug">
-            Get this in your inbox daily?
+            You&apos;re subscribed!
           </p>
-          <button
-            onClick={onDismiss}
-            className="text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-0.5 flex-shrink-0"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            We'll help you focus on what matters most — starting with
+            tomorrow's brief.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Set up your daily digest — pick which newsletters to include and in
-          what order.
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onSetup}
-            className="flex-1 h-9 rounded-xl bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all"
-          >
-            Set up digest
-          </button>
-          <button
-            onClick={onDismiss}
-            className="h-9 px-3 rounded-xl text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Not now
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Digest setup modal
-// ---------------------------------------------------------------------------
-const MAX_DIGEST_SOURCES = 7;
-
-function DigestSetupModal({
-  onClose,
-  onEnabled,
-}: {
-  onClose: () => void;
-  onEnabled: () => void;
-}) {
-  const [sources, setSources] = useState<DigestSource[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/digest/sources")
-      .then((r) => r.json())
-      .then((data) => {
-        // Clamp: if saved state has more than MAX enabled (e.g. cap was raised/lowered),
-        // disable everything past the limit so the UI starts in a valid state.
-        let count = 0;
-        const clamped = (data.sources ?? []).map((s: DigestSource) => {
-          if (s.enabled && count < MAX_DIGEST_SOURCES) { count++; return s; }
-          if (s.enabled) return { ...s, enabled: false };
-          return s;
-        });
-        setSources(clamped);
-      })
-      .catch(() => setError("Failed to load your newsletters."))
-      .finally(() => setLoadingData(false));
-  }, []);
-
-  const enabledCount = sources.filter((s) => s.enabled).length;
-
-  const toggleEnabled = (email: string) => {
-    setSources((prev) =>
-      prev.map((s) => {
-        if (s.source_email !== email) return s;
-        if (!s.enabled && enabledCount >= MAX_DIGEST_SOURCES) return s;
-        return { ...s, enabled: !s.enabled };
-      }),
-    );
-  };
-
-  const moveUp = (index: number) => {
-    if (index === 0) return;
-    setSources((prev) => {
-      const next = [...prev];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next.map((s, i) => ({ ...s, priority: i }));
-    });
-  };
-
-  const moveDown = (index: number) => {
-    setSources((prev) => {
-      if (index === prev.length - 1) return prev;
-      const next = [...prev];
-      [next[index], next[index + 1]] = [next[index + 1], next[index]];
-      return next.map((s, i) => ({ ...s, priority: i }));
-    });
-  };
-
-  const handleSave = async () => {
-    if (enabledCount === 0 || saving) return;
-    if (enabledCount > MAX_DIGEST_SOURCES) {
-      setError(`Please select no more than ${MAX_DIGEST_SOURCES} sources.`);
-      return;
-    }
-    setSaving(true);
-    try {
-      const res1 = await fetch("/api/digest/sources", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sources }),
-      });
-      if (!res1.ok) throw new Error("Failed to save");
-      const res2 = await fetch("/api/digest/enable", { method: "POST" });
-      if (!res2.ok) throw new Error("Failed to enable");
-      onEnabled();
-    } catch {
-      setError("Something went wrong. Try again.");
-      setSaving(false);
-    }
-  };
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <motion.div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div
-        className="relative z-10 w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col max-h-[80vh]"
-        initial={{ y: "100%", opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: "30%", opacity: 0 }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-      >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 flex-shrink-0">
-          <div>
-            <p className="text-sm font-semibold">Set up your daily digest</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Choose up to {MAX_DIGEST_SOURCES} sources and set their order in
-              the email.
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-semibold leading-snug">
+              Get this in your inbox daily?
             </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 flex-shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          {loadingData ? (
-            <div className="flex items-center justify-center py-12">
-              <span className="w-5 h-5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-            </div>
-          ) : error ? (
-            <div className="px-5 py-6 text-sm text-red-400">{error}</div>
-          ) : sources.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-              No newsletters found. Sync your inbox first.
-            </div>
-          ) : (
-            <>
-              <div className="px-5 pt-3 pb-1 flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-widest">
-                  Sources
-                </span>
-                <span
-                  className={`text-[11px] font-medium ${enabledCount >= MAX_DIGEST_SOURCES ? "text-amber-400" : "text-muted-foreground/60"}`}
-                >
-                  {enabledCount} / {MAX_DIGEST_SOURCES}
-                </span>
-              </div>
-              <div className="divide-y divide-border">
-                {sources.map((source, index) => (
-                  <motion.div
-                    key={source.source_email}
-                    layout
-                    transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                    className={`flex items-center gap-3 px-5 py-3 transition-opacity ${source.enabled ? "" : "opacity-45"}`}
-                  >
-                    <button
-                      onClick={() => toggleEnabled(source.source_email)}
-                      className={`w-4.5 h-4.5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                        source.enabled
-                          ? "bg-primary border-primary"
-                          : !source.enabled &&
-                              enabledCount >= MAX_DIGEST_SOURCES
-                            ? "border-border cursor-not-allowed"
-                            : "border-border hover:border-primary/60"
-                      }`}
-                      style={{ width: 18, height: 18 }}
-                    >
-                      {source.enabled && (
-                        <svg
-                          className="w-2.5 h-2.5 text-white"
-                          fill="none"
-                          viewBox="0 0 12 12"
-                        >
-                          <path
-                            d="M2 6l3 3 5-5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {extractSenderName(source.source_email)}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground/50">
-                        #{index + 1} in digest
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-0.5 flex-shrink-0">
-                      <button
-                        onClick={() => moveUp(index)}
-                        disabled={index === 0}
-                        className="p-1 rounded text-muted-foreground/40 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => moveDown(index)}
-                        disabled={index === sources.length - 1}
-                        className="p-1 rounded text-muted-foreground/40 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-              <p className="px-5 pb-4 pt-2 text-[11px] text-muted-foreground/40">
-                Unchecked sources still appear in the app — just not in your
-                email.
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        {!loadingData && sources.length > 0 && (
-          <div className="px-5 py-4 border-t border-border flex items-center gap-3 flex-shrink-0">
             <button
-              onClick={handleSave}
-              disabled={enabledCount === 0 || saving}
-              className="flex-1 h-10 rounded-xl bg-primary text-white text-sm font-semibold disabled:opacity-40 hover:brightness-110 transition-all flex items-center justify-center gap-2"
+              onClick={onDismiss}
+              className="text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-0.5 flex-shrink-0"
             >
-              {saving ? (
-                <>
-                  <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />{" "}
-                  Saving…
-                </>
-              ) : (
-                "Enable daily digest"
-              )}
-            </button>
-            <button
-              onClick={onClose}
-              className="h-10 px-4 rounded-xl text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Maybe later
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
-        )}
-      </motion.div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            A curated brief of your most important stories, every morning —
+            no setup needed.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleEnable}
+              disabled={enabling}
+              className="flex-1 h-9 rounded-xl bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all disabled:opacity-70"
+            >
+              {enabling ? "Turning on…" : "Turn on"}
+            </button>
+            <button
+              onClick={onDismiss}
+              className="h-9 px-3 rounded-xl text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -1623,7 +1426,7 @@ function SocialPostPanel({
           ) : (
             <>
               <Sparkles className="w-3.5 h-3.5" />
-              Generate
+              Draft
             </>
           )}
         </Button>
@@ -1633,33 +1436,37 @@ function SocialPostPanel({
 }
 
 // ---------------------------------------------------------------------------
-// Newsletter grouping
+// Topic grouping — the brief is organized around what changed (the topic),
+// not who told you about it (the sender).
 // ---------------------------------------------------------------------------
-interface SourceGroup {
-  sourceEmail: string;
-  senderName: string;
+interface TopicGroup {
+  topicKey: string;
+  headline: string;
   latestDate: string;
-  date: string; // YYYY-MM-DD of the email's actual received date
+  date: string; // YYYY-MM-DD of the most recent article's received date
   articles: Summary[];
   categories: string[];
 }
 
-function groupSummariesBySource(summaries: Summary[]): SourceGroup[] {
-  const map = new Map<string, SourceGroup>();
+function groupSummariesByTopic(summaries: Summary[]): TopicGroup[] {
+  const map = new Map<string, TopicGroup>();
   for (const s of summaries) {
-    // Key by (source + email issue) so each newsletter edition is its own card
-    const key = `${s.source_email}::${s.source_email_id}`;
+    // Stories Claude couldn't cluster into a topic each get their own group
+    // rather than being dropped or lumped together.
+    const key = s.topic_key || `story-${s.id}`;
     const existing = map.get(key);
     if (existing) {
       existing.articles.push(s);
-      if (s.created_at > existing.latestDate)
+      if (s.created_at > existing.latestDate) {
         existing.latestDate = s.created_at;
+        existing.headline = s.newsletter_title;
+      }
       const cat = s.category || "Other";
       if (!existing.categories.includes(cat)) existing.categories.push(cat);
     } else {
       map.set(key, {
-        sourceEmail: s.source_email,
-        senderName: extractSenderName(s.source_email),
+        topicKey: key,
+        headline: s.newsletter_title,
         articles: [s],
         latestDate: s.created_at,
         date: s.processed_date,
@@ -1667,19 +1474,48 @@ function groupSummariesBySource(summaries: Summary[]): SourceGroup[] {
       });
     }
   }
-  // Sort most-recent edition first
-  return Array.from(map.values()).sort((a, b) =>
-    b.date > a.date ? 1 : b.date < a.date ? -1 : 0,
-  );
+  // Preserves the order of `summaries` (a topic's position = wherever its
+  // first article appeared in the input). Callers pass in already-sorted
+  // summaries, so this naturally respects whatever sort the user picked —
+  // it must NOT force its own date sort here, or every sort option other
+  // than "newest" would silently have no effect on group order.
+  return Array.from(map.values());
 }
 
-function NewsletterSourceCard({
+const SIGNIFICANCE_WEIGHT: Record<string, number> = { major: 10, notable: 4, minor: 0 };
+
+// Composite "how important is this" score, combining three signals:
+// corroboration (multiple sources covering the same story), recurrence
+// (trend memory — has this come up before), and Claude's own significance
+// judgment. Used to decide what surfaces in "Top stories" vs "Trending" vs
+// the flat everything-else list.
+function topicImportanceScore(group: TopicGroup, trend?: TopicTrend): number {
+  const topSignificance = group.articles.reduce((max, a) => {
+    const w = SIGNIFICANCE_WEIGHT[a.significance ?? "notable"] ?? 4;
+    return Math.max(max, w);
+  }, 0);
+  const corroboration = Math.min(group.articles.length, 5) * 2; // up to 10
+  // weeks_seen_count starts at 1 on first sighting, so only weeks BEYOND the
+  // first count as true recurrence — otherwise every brand-new topic would
+  // get a free +3 before it has actually recurred.
+  const extraWeeksSeen = Math.max((trend?.weeksSeenCount ?? 1) - 1, 0);
+  const recurrence = Math.min(extraWeeksSeen, 5) * 3; // up to 15
+  return topSignificance + corroboration + recurrence;
+}
+
+function TopicCard({
   group,
+  trend,
+  isRead,
   onOpen,
 }: {
-  group: SourceGroup;
+  group: TopicGroup;
+  trend?: TopicTrend;
+  isRead: (id: string) => boolean;
   onOpen: () => void;
 }) {
+  const isRecurring = (trend?.weeksSeenCount ?? 0) >= 2;
+  const allRead = group.articles.every((a) => isRead(a.id));
   return (
     <button
       onClick={onOpen}
@@ -1687,31 +1523,149 @@ function NewsletterSourceCard({
     >
       <div className="px-4 py-3.5 flex items-center gap-3">
         <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-          <Mail className="w-4 h-4 text-muted-foreground" />
+          <Sparkles className="w-4 h-4 text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate">{group.senderName}</p>
-          <p className="text-xs text-muted-foreground/60 mt-0.5">
-            {group.articles.length} article
-            {group.articles.length !== 1 ? "s" : ""} ·{" "}
-            {timeAgo(group.latestDate)}
-          </p>
+          <p className="text-sm font-semibold truncate">{group.headline}</p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <p className="text-xs text-muted-foreground/60 flex-shrink-0">
+              {group.articles.length} update
+              {group.articles.length !== 1 ? "s" : ""} ·{" "}
+              {timeAgo(group.latestDate)} · {sourceLabel(group)}
+            </p>
+            {group.categories.map((cat) => (
+              <span
+                key={cat}
+                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${getCategoryStyle(cat)}`}
+              >
+                {cat}
+              </span>
+            ))}
+          </div>
         </div>
+        <span title={allRead ? "Seen" : "New"} className="flex-shrink-0">
+          {allRead ? (
+            <EyeOff className="w-3.5 h-3.5 text-muted-foreground/40" />
+          ) : (
+            <Eye className="w-3.5 h-3.5 text-primary/70" />
+          )}
+        </span>
         <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
       </div>
-      {group.categories.length > 0 && (
+      {(isRecurring || group.articles.length > 1) && (
         <div className="px-4 pb-3 flex flex-wrap gap-1">
-          {group.categories.map((cat) => (
-            <span
-              key={cat}
-              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${getCategoryStyle(cat)}`}
-            >
-              {cat}
+          {group.articles.length > 1 && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-500">
+              {group.articles.length} sources agree
             </span>
-          ))}
+          )}
+          {isRecurring && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-amber-500/30 bg-amber-500/10 text-amber-400">
+              {trend!.weeksSeenCount === 2 ? "2nd" : trend!.weeksSeenCount === 3 ? "3rd" : `${trend!.weeksSeenCount}th`} week running
+            </span>
+          )}
         </div>
       )}
     </button>
+  );
+}
+
+// Picks the article within a topic group whose fields ("why it matters" /
+// "what to do") best represent the group in the hero treatment — highest
+// Claude-judged significance wins, ties broken by most recent.
+function primaryArticle(group: TopicGroup): Summary {
+  return group.articles.reduce((best, a) => {
+    const bw = SIGNIFICANCE_WEIGHT[best.significance ?? "notable"] ?? 4;
+    const aw = SIGNIFICANCE_WEIGHT[a.significance ?? "notable"] ?? 4;
+    if (aw !== bw) return aw > bw ? a : best;
+    return a.created_at > best.created_at ? a : best;
+  }, group.articles[0]);
+}
+
+// Hero treatment for the single highest-scoring story of the day — gives the
+// brief one clear "here's the one thing" moment instead of opening straight
+// into a ranked list. Renders above the rest of "Top stories".
+function TopStoryHero({
+  group,
+  trend,
+  onOpen,
+}: {
+  group: TopicGroup;
+  trend?: TopicTrend;
+  onOpen: () => void;
+}) {
+  const isRecurring = (trend?.weeksSeenCount ?? 0) >= 2;
+  const article = primaryArticle(group);
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full text-left bg-gradient-to-br from-primary/10 via-card to-card rounded-2xl border border-primary/30 hover:border-primary/50 hover:shadow-md transition-all duration-150 group overflow-hidden px-5 py-5 sm:px-6"
+    >
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-widest bg-primary text-primary-foreground">
+          Today&apos;s biggest story
+        </span>
+        {group.articles.length > 1 && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-500">
+            {group.articles.length} sources agree
+          </span>
+        )}
+        {isRecurring && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-amber-500/30 bg-amber-500/10 text-amber-400">
+            {trend!.weeksSeenCount === 2 ? "2nd" : trend!.weeksSeenCount === 3 ? "3rd" : `${trend!.weeksSeenCount}th`} week running
+          </span>
+        )}
+      </div>
+      <p className="text-lg font-bold tracking-tight leading-snug mb-2">
+        {group.headline}
+      </p>
+      {article.why_it_matters && (
+        <p className="text-sm text-foreground/80 leading-relaxed line-clamp-2 max-w-2xl">
+          {article.why_it_matters}
+        </p>
+      )}
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-3 group-hover:gap-2 transition-all">
+        Read the full story <ChevronRight className="w-3.5 h-3.5" />
+      </span>
+    </button>
+  );
+}
+
+// Mobile: single column. Desktop: split into two columns. Shared by every
+// section of the brief (top stories, trending, everything-else-by-date).
+function TopicCardGrid({
+  groups,
+  trends,
+  isRead,
+  onOpen,
+}: {
+  groups: TopicGroup[];
+  trends: Record<string, TopicTrend>;
+  isRead: (id: string) => boolean;
+  onOpen: (g: TopicGroup) => void;
+}) {
+  const left = groups.filter((_, i) => i % 2 === 0);
+  const right = groups.filter((_, i) => i % 2 !== 0);
+  return (
+    <>
+      <div className="flex flex-col gap-3 lg:hidden">
+        {groups.map((g) => (
+          <TopicCard key={g.topicKey} group={g} trend={trends[g.topicKey]} isRead={isRead} onOpen={() => onOpen(g)} />
+        ))}
+      </div>
+      <div className="hidden lg:flex gap-3 items-start">
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+          {left.map((g) => (
+            <TopicCard key={g.topicKey} group={g} trend={trends[g.topicKey]} isRead={isRead} onOpen={() => onOpen(g)} />
+          ))}
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+          {right.map((g) => (
+            <TopicCard key={g.topicKey} group={g} trend={trends[g.topicKey]} isRead={isRead} onOpen={() => onOpen(g)} />
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1825,21 +1779,19 @@ function DismissedEmailsPanel({ onClose, onCountChange }: { onClose: () => void;
 }
 
 // ---------------------------------------------------------------------------
-// Source panel (right drawer)
+// Topic panel (right drawer)
 // ---------------------------------------------------------------------------
-function SourcePanel({
-  sourceEmail,
-  sourceEmailId,
+function TopicPanel({
+  topicKey,
   summaries,
+  trend,
   onClose,
-  isExpanded,
   isBookmarked,
   isRead,
   isFlagged,
   generatedPosts,
   generating,
   copying,
-  onToggleExpand,
   onToggleBookmark,
   onToggleRead,
   onGenerate,
@@ -1848,18 +1800,16 @@ function SourcePanel({
   onShare,
   onFlag,
 }: {
-  sourceEmail: string;
-  sourceEmailId: string;
+  topicKey: string;
   summaries: Summary[];
+  trend?: TopicTrend;
   onClose: () => void;
-  isExpanded: (id: string) => boolean;
   isBookmarked: (id: string) => boolean;
   isRead: (id: string) => boolean;
   isFlagged: (id: string) => boolean;
   generatedPosts: Record<string, { linkedin?: string; twitter?: string }>;
   generating: Record<string, boolean>;
   copying: string | null;
-  onToggleExpand: (id: string) => void;
   onToggleBookmark: (id: string) => void;
   onToggleRead: (id: string) => void;
   onGenerate: (id: string, p: Platform) => void;
@@ -1869,10 +1819,10 @@ function SourcePanel({
   onFlag: (id: string) => void;
 }) {
   const articles = summaries.filter(
-    (s) =>
-      s.source_email === sourceEmail && s.source_email_id === sourceEmailId,
+    (s) => (s.topic_key || `story-${s.id}`) === topicKey,
   );
-  const senderName = extractSenderName(sourceEmail);
+  const headline = articles[0]?.newsletter_title ?? "";
+  const isRecurring = (trend?.weeksSeenCount ?? 0) >= 2;
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -1899,9 +1849,12 @@ function SourcePanel({
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
           <div>
-            <p className="text-sm font-semibold">{senderName}</p>
+            <p className="text-sm font-semibold">{headline}</p>
             <p className="text-xs text-muted-foreground">
-              {articles.length} article{articles.length !== 1 ? "s" : ""}
+              {articles.length} update{articles.length !== 1 ? "s" : ""}
+              {isRecurring
+                ? ` · ${trend!.weeksSeenCount === 2 ? "2nd" : trend!.weeksSeenCount === 3 ? "3rd" : `${trend!.weeksSeenCount}th`} week running`
+                : ""}
             </p>
           </div>
           <button
@@ -1911,19 +1864,18 @@ function SourcePanel({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {articles.map((s) => (
+        <div className="flex-1 overflow-y-auto p-4">
+          {articles.map((s, i) => (
             <NewsletterCard
               key={s.id}
               summary={s}
-              isExpanded={isExpanded(s.id)}
+              isFirst={i === 0}
               isBookmarked={isBookmarked(s.id)}
               isRead={isRead(s.id)}
               isFlagged={isFlagged(s.id)}
               generatedPosts={generatedPosts}
               generating={generating}
               copying={copying}
-              onToggleExpand={onToggleExpand}
               onToggleBookmark={onToggleBookmark}
               onToggleRead={onToggleRead}
               onGenerate={onGenerate}
@@ -1941,14 +1893,13 @@ function SourcePanel({
 
 function NewsletterCard({
   summary,
-  isExpanded,
+  isFirst = true,
   isBookmarked,
   isRead,
   isFlagged,
   generatedPosts,
   generating,
   copying,
-  onToggleExpand,
   onToggleBookmark,
   onToggleRead,
   onGenerate,
@@ -1956,18 +1907,15 @@ function NewsletterCard({
   onBlock,
   onShare,
   onFlag,
-  noOuterBorder = false,
-  onOpenSource,
 }: {
   summary: Summary;
-  isExpanded: boolean;
+  isFirst?: boolean;
   isBookmarked: boolean;
   isRead: boolean;
   isFlagged: boolean;
   generatedPosts: Record<string, { linkedin?: string; twitter?: string }>;
   generating: Record<string, boolean>;
   copying: string | null;
-  onToggleExpand: (id: string) => void;
   onToggleBookmark: (id: string) => void;
   onToggleRead: (id: string) => void;
   onGenerate: (id: string, p: Platform) => void;
@@ -1975,8 +1923,6 @@ function NewsletterCard({
   onBlock: (id: string) => void;
   onShare: (id: string) => void;
   onFlag: (id: string) => void;
-  noOuterBorder?: boolean;
-  onOpenSource?: (sourceEmail: string) => void;
 }) {
   const [socialOpen, setSocialOpen] = useState(true);
   const posts = generatedPosts[summary.id] ?? {};
@@ -1988,15 +1934,9 @@ function NewsletterCard({
     summary.source_url || (senderDomain ? `https://${senderDomain}` : null);
 
   return (
-    <article
-      className={`bg-card overflow-hidden transition-all duration-150 ${
-        noOuterBorder
-          ? ""
-          : `rounded-xl border ${isExpanded ? "border-border/80 ring-1 ring-primary/20" : "border-border hover:border-primary/20 min-h-24"}`
-      } ${!isRead && !isExpanded && !noOuterBorder ? "border-l-[3px] border-l-primary/60" : ""}`}
-    >
+    <article className={isFirst ? "" : "mt-5 pt-5 border-t border-border"}>
       {/* Row 1: badge + quick action icons */}
-      <div className="px-4 sm:px-5 pt-3.5 flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <span
           className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${catStyle}`}
         >
@@ -2039,10 +1979,13 @@ function NewsletterCard({
       </div>
 
       {/* Row 2: sender · timestamp */}
-      <div className="px-4 sm:px-5 pt-2.5 flex items-center justify-between">
+      <div className="pt-2.5 flex items-center justify-between">
         <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
           <Mail className="w-3 h-3" />
           {senderName}
+          {!isRead && (
+            <span className="w-1.5 h-1.5 rounded-full bg-primary ml-1" aria-hidden />
+          )}
         </span>
         <span className="text-[10px] text-muted-foreground/40">
           {timeAgo(summary.created_at)}
@@ -2050,34 +1993,18 @@ function NewsletterCard({
       </div>
 
       {/* Title */}
-      <button
-        className="w-full text-left px-4 sm:px-5 pt-2 pb-2 flex items-start justify-between gap-3 group"
-        onClick={() => onToggleExpand(summary.id)}
-      >
-        <h2 className="text-sm font-semibold leading-snug text-foreground group-hover:text-primary/90 transition-colors">
-          {summary.newsletter_title}
-        </h2>
-        <span className="flex-shrink-0 mt-0.5">
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          )}
-        </span>
-      </button>
+      <h2 className="pt-2 pb-2 text-sm font-semibold leading-snug text-foreground">
+        {summary.newsletter_title}
+      </h2>
 
       {/* Action icons below title — LinkedIn, X, share */}
-      <div className="px-4 sm:px-5 pb-3 flex items-center gap-0.5 justify-end">
+      <div className="pb-3 flex items-center gap-0.5 justify-end">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!isExpanded) onToggleExpand(summary.id);
-            onGenerate(summary.id, "linkedin");
-          }}
+          onClick={() => onGenerate(summary.id, "linkedin")}
           title={
             posts.linkedin || summary.linkedin_post
               ? "LinkedIn post ready"
-              : "Generate LinkedIn post"
+              : "Draft LinkedIn post"
           }
           className={`p-1 rounded transition-colors ${posts.linkedin || summary.linkedin_post ? "text-[#0A66C2]" : "text-muted-foreground/60 hover:text-[#0A66C2]/70"}`}
         >
@@ -2085,15 +2012,11 @@ function NewsletterCard({
         </button>
 
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!isExpanded) onToggleExpand(summary.id);
-            onGenerate(summary.id, "twitter");
-          }}
+          onClick={() => onGenerate(summary.id, "twitter")}
           title={
             posts.twitter || summary.twitter_post
               ? "X post ready"
-              : "Generate X post"
+              : "Draft X post"
           }
           className={`p-1 rounded transition-colors ${posts.twitter || summary.twitter_post ? "text-foreground/70" : "text-muted-foreground/60 hover:text-foreground/80"}`}
         >
@@ -2101,10 +2024,7 @@ function NewsletterCard({
         </button>
 
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onShare(summary.id);
-          }}
+          onClick={() => onShare(summary.id)}
           title="Copy share link"
           className={`p-1 rounded transition-colors ${copying === `share-${summary.id}` ? "text-primary" : "text-muted-foreground/60 hover:text-primary/80"}`}
         >
@@ -2116,118 +2036,130 @@ function NewsletterCard({
         </button>
       </div>
 
-      {isExpanded && (
-        <div className="border-t border-border">
-          <div className="px-4 sm:px-5 py-4 space-y-4">
-            {summary.summary && (
-              <p className="text-sm text-foreground leading-relaxed">
-                {summary.summary}
-              </p>
-            )}
+      <div className="space-y-4">
+        {summary.summary && (
+          <p className="text-sm text-foreground leading-relaxed">
+            {summary.summary}
+          </p>
+        )}
 
-            {summary.key_points?.length > 0 && (
-              <ul className="space-y-2">
-                {summary.key_points.map((point, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm">
-                    <span className="text-primary mt-0.5 flex-shrink-0 text-xs">
-                      ▸
-                    </span>
-                    <span className="text-foreground/85">{point}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {summary.simple_explanation && (
-              <p className="text-xs text-foreground/70 leading-relaxed border-l-2 border-border pl-3">
-                {summary.simple_explanation}
-              </p>
-            )}
-
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <p className="text-[10px] text-muted-foreground">
-                {formatDate(summary.created_at)}
-              </p>
-              <div className="flex items-center gap-3">
-                {sourceHref && (
-                  <a
-                    href={sourceHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                  >
-                    Read article
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
-                <button
-                  onClick={() => onFlag(summary.id)}
-                  title={
-                    isFlagged ? "Flagged as inaccurate" : "Flag as inaccurate"
-                  }
-                  className={`inline-flex items-center gap-1 text-xs transition-colors ${isFlagged ? "text-red-500" : "text-muted-foreground/70 hover:text-red-600"}`}
-                >
-                  <ThumbsDown className="w-3.5 h-3.5" />
-                  {isFlagged ? "Flagged" : "Inaccurate?"}
-                </button>
-              </div>
-            </div>
-
-            {onOpenSource && (
-              <button
-                onClick={() => onOpenSource(summary.source_email)}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary/80 hover:text-primary transition-colors"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                View all from {senderName}
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            )}
+        {summary.key_points?.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+              What changed
+            </p>
+            <ul className="space-y-2">
+              {summary.key_points.map((point, i) => (
+                <li key={i} className="flex gap-2.5 text-sm">
+                  <span className="text-primary mt-0.5 flex-shrink-0 text-xs">
+                    ▸
+                  </span>
+                  <span className="text-foreground/85">{point}</span>
+                </li>
+              ))}
+            </ul>
           </div>
+        )}
 
-          <div className="px-4 sm:px-5 py-4 bg-secondary/20 border-t border-border space-y-3">
-            <button
-              onClick={() => setSocialOpen((o) => !o)}
-              className="flex items-center justify-between w-full group"
-            >
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-                Social Posts
-              </p>
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform duration-200 ${socialOpen ? "rotate-180" : ""}`}
-              />
-            </button>
-            {socialOpen && (
-              <div className="flex flex-col sm:flex-row gap-3 items-start">
-                <div className="w-full sm:flex-1">
-                  <SocialPostPanel
-                    summaryId={summary.id}
-                    platform="linkedin"
-                    existingPost={summary.linkedin_post}
-                    generatedPost={posts.linkedin}
-                    isGenerating={!!generating[`${summary.id}-linkedin`]}
-                    isCopied={copying === `${summary.id}-linkedin`}
-                    onGenerate={onGenerate}
-                    onCopy={onCopy}
-                  />
-                </div>
-                <div className="w-full sm:flex-1">
-                  <SocialPostPanel
-                    summaryId={summary.id}
-                    platform="twitter"
-                    existingPost={summary.twitter_post}
-                    generatedPost={posts.twitter}
-                    isGenerating={!!generating[`${summary.id}-twitter`]}
-                    isCopied={copying === `${summary.id}-twitter`}
-                    onGenerate={onGenerate}
-                    onCopy={onCopy}
-                  />
-                </div>
-              </div>
+        {summary.why_it_matters && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">
+              Why it matters
+            </p>
+            <p className="text-sm text-foreground/85 leading-relaxed">
+              {summary.why_it_matters}
+            </p>
+          </div>
+        )}
+
+        {summary.what_to_do && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">
+              What to do
+            </p>
+            <p className="text-sm text-foreground/85 leading-relaxed">
+              {summary.what_to_do}
+            </p>
+          </div>
+        )}
+
+        {summary.simple_explanation && (
+          <p className="text-xs text-foreground/70 leading-relaxed border-l-2 border-border pl-3">
+            {summary.simple_explanation}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <p className="text-[10px] text-muted-foreground">
+            {formatDate(summary.created_at)}
+          </p>
+          <div className="flex items-center gap-3">
+            {sourceHref && (
+              <a
+                href={sourceHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                Read article
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
             )}
+            <button
+              onClick={() => onFlag(summary.id)}
+              title={
+                isFlagged ? "Flagged as inaccurate" : "Flag as inaccurate"
+              }
+              className={`inline-flex items-center gap-1 text-xs transition-colors ${isFlagged ? "text-red-500" : "text-muted-foreground/70 hover:text-red-600"}`}
+            >
+              <ThumbsDown className="w-3.5 h-3.5" />
+              {isFlagged ? "Flagged" : "Inaccurate?"}
+            </button>
           </div>
         </div>
-      )}
+      </div>
+
+      <div className="mt-4 pt-4 bg-secondary/20 rounded-lg px-3 py-3 space-y-3">
+        <button
+          onClick={() => setSocialOpen((o) => !o)}
+          className="flex items-center justify-between w-full group"
+        >
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+            What to share
+          </p>
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform duration-200 ${socialOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        {socialOpen && (
+          <div className="flex flex-col sm:flex-row gap-3 items-start">
+            <div className="w-full sm:flex-1">
+              <SocialPostPanel
+                summaryId={summary.id}
+                platform="linkedin"
+                existingPost={summary.linkedin_post}
+                generatedPost={posts.linkedin}
+                isGenerating={!!generating[`${summary.id}-linkedin`]}
+                isCopied={copying === `${summary.id}-linkedin`}
+                onGenerate={onGenerate}
+                onCopy={onCopy}
+              />
+            </div>
+            <div className="w-full sm:flex-1">
+              <SocialPostPanel
+                summaryId={summary.id}
+                platform="twitter"
+                existingPost={summary.twitter_post}
+                generatedPost={posts.twitter}
+                isGenerating={!!generating[`${summary.id}-twitter`]}
+                isCopied={copying === `${summary.id}-twitter`}
+                onGenerate={onGenerate}
+                onCopy={onCopy}
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </article>
   );
 }
@@ -2241,6 +2173,7 @@ export default function Dashboard() {
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [trends, setTrends] = useState<Record<string, TopicTrend>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false); // importing via SSE
   const [scanning, setScanning] = useState(false); // scan phase
@@ -2250,7 +2183,6 @@ export default function Dashboard() {
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showDigestOptIn, setShowDigestOptIn] = useState(false);
-  const [showDigestSetup, setShowDigestSetup] = useState(false);
 
   // ── Scan / selection modal state ──────────────────────────────────────────
   const [scanResult, setScanResult] = useState<EmailPreview[] | null>(null);
@@ -2259,7 +2191,6 @@ export default function Dashboard() {
   const [blockedInModal, setBlockedInModal] = useState<Set<string>>(new Set());
 
   // ── Per-card state ────────────────────────────────────────────────────────
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
   const [read, setRead] = useState<Set<string>>(new Set());
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
@@ -2275,16 +2206,40 @@ export default function Dashboard() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeSource, setActiveSource] = useState("All");
   const [dateFilter, setDateFilter] = useState<DateFilter>("7d");
-  const [panelSource, setPanelSource] = useState<{
-    email: string;
-    emailId: string;
-  } | null>(null);
+  const [panelTopic, setPanelTopic] = useState<string | null>(null);
+  const [connectingGmail, setConnectingGmail] = useState(false);
+
+  // Opening a topic panel shows its stories' content immediately and marks
+  // them read — there's no separate collapse/expand step to click through.
+  const openTopicPanel = useCallback(
+    (topicKey: string, articleIds: string[]) => {
+      setPanelTopic(topicKey);
+      const newlyRead = articleIds.filter((id) => !read.has(id));
+      if (newlyRead.length > 0) {
+        setRead((prev) => new Set([...prev, ...newlyRead]));
+        newlyRead.forEach((id) => {
+          const s = summaries.find((x) => x.id === id);
+          ph?.capture("article_expanded", {
+            category: s?.category,
+            source: s?.source_email,
+          });
+          fetch("/api/update-summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, is_read: true }),
+          }).catch(() => {});
+        });
+      }
+    },
+    [read, summaries, ph]
+  );
   const [showDismissedPanel, setShowDismissedPanel] = useState(false);
   const [dismissedCount, setDismissedCount] = useState(0);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [advancedAnimating, setAdvancedAnimating] = useState(false);
   const [digestState, setDigestState] = useState<
     "idle" | "loading" | "sent" | "empty" | "error"
   >("idle");
@@ -2333,17 +2288,17 @@ export default function Dashboard() {
     try {
       const res = await fetch("/api/summaries", { cache: "no-store" });
       const data = await res.json();
+      const rawSummaries: Summary[] = Array.isArray(data) ? data : (data.summaries ?? []);
       // Supabase returns timestamps without a timezone suffix — append Z so
       // JavaScript parses them as UTC instead of local time.
-      const normalized = Array.isArray(data)
-        ? data.map((s: Summary) => ({
-            ...s,
-            created_at: s.created_at && !s.created_at.endsWith("Z") && !s.created_at.includes("+")
-              ? s.created_at + "Z"
-              : s.created_at,
-          }))
-        : [];
+      const normalized = rawSummaries.map((s) => ({
+        ...s,
+        created_at: s.created_at && !s.created_at.endsWith("Z") && !s.created_at.includes("+")
+          ? s.created_at + "Z"
+          : s.created_at,
+      }));
       setSummaries(normalized);
+      setTrends(Array.isArray(data) ? {} : (data.trends ?? {}));
     } catch {
       setSummaries([]);
     } finally {
@@ -2355,10 +2310,10 @@ export default function Dashboard() {
     fetchSummaries().then(() => {
       // After summaries load, check if user has opted in to digest.
       // If not (including "Maybe later" dismissals), re-show the toast.
-      fetch("/api/digest/sources")
+      fetch("/api/digest/enable")
         .then((r) => r.json())
         .then((data) => {
-          if (!data.digestEnabled && (data.sources ?? []).length > 0) {
+          if (!data.digestEnabled && data.hasSummaries) {
             setTimeout(() => setShowDigestOptIn(true), 1500);
           }
         })
@@ -2389,7 +2344,9 @@ export default function Dashboard() {
         return;
       }
       const next = data.sent ? "sent" : "empty";
-      if (data.sent) ph?.capture("digest_sent", { article_count: data.count });
+      // digest_sent is now captured server-side (app/api/digest/route.ts),
+      // so it fires consistently whether or not this dev-only button is the
+      // one that triggered the send.
       setDigestState(next);
       setTimeout(() => setDigestState("idle"), 3500);
     } catch (e) {
@@ -2615,32 +2572,6 @@ export default function Dashboard() {
   };
 
   // ── Card actions ──────────────────────────────────────────────────────────
-  const handleToggleExpand = useCallback(
-    (id: string) => {
-      setExpandedIds((prev) => {
-        const next = new Set(prev);
-        const opening = !next.has(id);
-        opening ? next.add(id) : next.delete(id);
-        if (opening) {
-          const s = summaries.find((x) => x.id === id);
-          ph?.capture("article_expanded", {
-            category: s?.category,
-            source: s?.source_email,
-          });
-        }
-        return next;
-      });
-      if (!read.has(id)) {
-        setRead((prev) => new Set([...prev, id]));
-        fetch("/api/update-summary", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, is_read: true }),
-        }).catch(() => {});
-      }
-    },
-    [read, summaries, ph],
-  );
 
   const handleToggleRead = useCallback((id: string) => {
     setRead((prev) => {
@@ -2840,10 +2771,54 @@ export default function Dashboard() {
     read,
   ]);
 
-  const sourceGroups = useMemo(
-    () => groupSummariesBySource(filteredSummaries),
-    [filteredSummaries],
-  );
+  const topicGroups = useMemo(() => {
+    const groups = groupSummariesByTopic(filteredSummaries);
+    // "Morning surprise": when sorted by recency, pin recurring topics
+    // (trend memory) near the top rather than letting them get buried
+    // chronologically among one-off stories.
+    if (sortBy !== "newest") return groups;
+    return [...groups].sort((a, b) => {
+      const aRecurring = (trends[a.topicKey]?.weeksSeenCount ?? 0) >= 2;
+      const bRecurring = (trends[b.topicKey]?.weeksSeenCount ?? 0) >= 2;
+      if (aRecurring !== bRecurring) return aRecurring ? -1 : 1;
+      return b.date > a.date ? 1 : b.date < a.date ? -1 : 0;
+    });
+  }, [filteredSummaries, sortBy, trends]);
+
+  // Splits topicGroups into a curated "brief" shape — Top stories / Trending
+  // / everything else — instead of one flat ranked list. Counts are flexible
+  // (not a fixed 3/1/N): a quiet day may have 0 top stories, a big day may
+  // have several. Only applies in the default recency sort; other explicit
+  // sort choices (by source/category/oldest) show the plain flat list.
+  const { topStories, trendingOnly, remainingGroups } = useMemo(() => {
+    if (sortBy !== "newest") {
+      return { topStories: [] as TopicGroup[], trendingOnly: [] as TopicGroup[], remainingGroups: topicGroups };
+    }
+
+    const scored = topicGroups.map((group) => ({
+      group,
+      score: topicImportanceScore(group, trends[group.topicKey]),
+      recurring: (trends[group.topicKey]?.weeksSeenCount ?? 0) >= 2,
+    }));
+
+    const top = [...scored]
+      .sort((a, b) => b.score - a.score)
+      .filter((s) => s.score >= 8)
+      .slice(0, 8)
+      .map((s) => s.group);
+    const topKeys = new Set(top.map((g) => g.topicKey));
+
+    const trending = scored
+      .filter((s) => s.recurring && !topKeys.has(s.group.topicKey))
+      .map((s) => s.group);
+    const trendingKeys = new Set(trending.map((g) => g.topicKey));
+
+    const remaining = topicGroups.filter(
+      (g) => !topKeys.has(g.topicKey) && !trendingKeys.has(g.topicKey),
+    );
+
+    return { topStories: top, trendingOnly: trending, remainingGroups: remaining };
+  }, [topicGroups, trends, sortBy]);
 
   const unreadCount = useMemo(
     () => summaries.filter((s) => !read.has(s.id)).length,
@@ -2857,14 +2832,22 @@ export default function Dashboard() {
     const twReady = summaries.filter(
       (s) => s.twitter_post || generatedPosts[s.id]?.twitter,
     ).length;
+    // Distinct topics currently recurring across weeks — reinforces the
+    // brief's positioning (what keeps coming back) instead of a static
+    // newsletter-sender inventory count.
+    const trendingTopics = new Set(
+      summaries
+        .map((s) => s.topic_key)
+        .filter((k): k is string => k != null && (trends[k]?.weeksSeenCount ?? 0) >= 2),
+    );
     return {
       total: summaries.length,
       liReady,
       twReady,
-      sources: uniqueSources.length,
+      trending: trendingTopics.size,
       bookmarkedCount: bookmarked.size,
     };
-  }, [summaries, generatedPosts, uniqueSources, bookmarked]);
+  }, [summaries, generatedPosts, bookmarked, trends]);
 
   const hasActiveFilters =
     searchQuery ||
@@ -2893,17 +2876,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* ── Digest setup modal ─────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showDigestSetup && (
-          <DigestSetupModal
-            key="digest-setup-modal"
-            onClose={() => setShowDigestSetup(false)}
-            onEnabled={() => setShowDigestSetup(false)}
-          />
-        )}
-      </AnimatePresence>
-
       {/* ── Selection modal ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {scanResult !== null && (
@@ -2967,10 +2939,7 @@ export default function Dashboard() {
         {showDigestOptIn && (
           <DigestOptInToast
             key="digest-optin-toast"
-            onSetup={() => {
-              setShowDigestOptIn(false);
-              setShowDigestSetup(true);
-            }}
+            onEnabled={() => setShowDigestOptIn(false)}
             onDismiss={() => setShowDigestOptIn(false)}
           />
         )}
@@ -2987,23 +2956,21 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* ── Source panel ───────────────────────────────────────────────────── */}
+      {/* ── Topic panel ────────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {panelSource && (
-          <SourcePanel
-            key="source-panel"
-            sourceEmail={panelSource.email}
-            sourceEmailId={panelSource.emailId}
+        {panelTopic && (
+          <TopicPanel
+            key="topic-panel"
+            topicKey={panelTopic}
             summaries={summaries}
-            onClose={() => setPanelSource(null)}
-            isExpanded={(id) => expandedIds.has(id)}
+            trend={trends[panelTopic]}
+            onClose={() => setPanelTopic(null)}
             isBookmarked={(id) => bookmarked.has(id)}
             isRead={(id) => read.has(id)}
             isFlagged={(id: string) => flagged.has(id)}
             generatedPosts={generatedPosts}
             generating={generating}
             copying={copying}
-            onToggleExpand={handleToggleExpand}
             onToggleBookmark={handleToggleBookmark}
             onToggleRead={handleToggleRead}
             onGenerate={handleGenerate}
@@ -3040,12 +3007,12 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <h1 className="text-xl font-semibold tracking-tight">
-                    Your newsletters, already read.
+                    Here&apos;s what changed while you were building.
                   </h1>
                   <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-                    Pidgin scans your Gmail, summarizes every newsletter with
-                    AI, and drafts LinkedIn posts — so you stay informed without
-                    the inbox chaos.
+                    Pidgin reads your newsletters and ranks what actually
+                    matters — a daily brief of what changed, why it matters,
+                    and what to do about it.
                   </p>
                 </div>
               </div>
@@ -3094,18 +3061,32 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-3">
-                <a href="/api/auth/google" className="block">
-                  <Button className="w-full gap-2 h-10 text-sm font-medium">
-                    <Mail className="w-4 h-4" />
-                    Connect Gmail
-                    <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-60" />
-                  </Button>
-                </a>
+                <Button
+                  className="w-full gap-2 h-10 text-sm font-medium"
+                  disabled={connectingGmail}
+                  onClick={() => {
+                    setConnectingGmail(true);
+                    window.location.href = "/api/auth/google";
+                  }}
+                >
+                  {connectingGmail ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      Connect Gmail
+                      <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-60" />
+                    </>
+                  )}
+                </Button>
                 <p className="text-center text-[11px] text-muted-foreground leading-relaxed">
                   Read-only access. We never send, delete, or modify your email.
                   <br />
                   Your data stays private and is only used to generate your
-                  digest.
+                  brief.
                 </p>
               </div>
             </div>
@@ -3139,7 +3120,7 @@ export default function Dashboard() {
               </h1>
               <p className="text-sm text-muted-foreground mt-1.5">
                 {unreadCount > 0
-                  ? `${unreadCount} unread article${unreadCount !== 1 ? "s" : ""} · ${metrics.sources} source${metrics.sources !== 1 ? "s" : ""}`
+                  ? `${unreadCount} unread · ${metrics.total} stor${metrics.total !== 1 ? "ies" : "y"} in your brief`
                   : metrics.total > 0
                     ? `All caught up · ${metrics.total} article${metrics.total !== 1 ? "s" : ""} in your digest`
                     : "Your inbox is empty — sync to get started."}
@@ -3147,7 +3128,10 @@ export default function Dashboard() {
             </div>
             {gmailConnected === true && (
               <div className="flex items-center gap-2">
-                {summaries.length > 0 && (
+                {/* Dev-only debugging tool — manual "send digest now" doesn't
+                    fit the product's automatic-delivery pitch, kept for
+                    testing but hidden from real users. */}
+                {summaries.length > 0 && process.env.NODE_ENV === "development" && (
                   <button
                     onClick={handleSendDigest}
                     disabled={digestState === "loading"}
@@ -3174,7 +3158,7 @@ export default function Dashboard() {
                     ) : digestState === "error" ? (
                       <>Failed — check console</>
                     ) : digestState === "empty" ? (
-                      <>No articles today</>
+                      <>Nothing major today</>
                     ) : (
                       <>
                         <Mail className="w-3.5 h-3.5" /> Send digest
@@ -3222,10 +3206,11 @@ export default function Dashboard() {
                   sub="ready to publish"
                 />,
                 <MetricTile
-                  key="sources"
-                  label="Unique sources"
-                  value={metrics.sources}
-                  icon={<Mail className="w-4 h-4 text-muted-foreground" />}
+                  key="trending"
+                  label="Trending"
+                  value={metrics.trending}
+                  icon={<TrendingUp className="w-4 h-4 text-amber-400" />}
+                  sub="topics recurring"
                 />,
                 <MetricTile
                   key="bm"
@@ -3346,7 +3331,9 @@ export default function Dashboard() {
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.18, ease: "easeInOut" }}
-                    className="overflow-hidden"
+                    onAnimationStart={() => setAdvancedAnimating(true)}
+                    onAnimationComplete={() => setAdvancedAnimating(false)}
+                    className={advancedAnimating ? "overflow-hidden" : "overflow-visible"}
                   >
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <div className="relative">
@@ -3409,9 +3396,7 @@ export default function Dashboard() {
 
                       {!loading && (
                         <span className="ml-auto text-xs text-muted-foreground">
-                          {sourceGroups.length === uniqueSources.length
-                            ? `${uniqueSources.length} newsletter${uniqueSources.length !== 1 ? "s" : ""}`
-                            : `${sourceGroups.length} of ${uniqueSources.length} newsletters`}
+                          {topicGroups.length} {topicGroups.length !== 1 ? "stories" : "story"}
                         </span>
                       )}
                     </div>
@@ -3455,88 +3440,92 @@ export default function Dashboard() {
             </div>
           ) : (
             (() => {
-              const totalPages = Math.ceil(sourceGroups.length / PER_PAGE);
-              const paged = sourceGroups.slice(
+              const showSections = sortBy === "newest" && (topStories.length > 0 || trendingOnly.length > 0);
+              const baseForPagination = showSections ? remainingGroups : topicGroups;
+
+              const totalPages = Math.ceil(baseForPagination.length / PER_PAGE);
+              const paged = baseForPagination.slice(
                 (page - 1) * PER_PAGE,
                 page * PER_PAGE,
               );
 
-              // Group paged source cards by their latest article date
-              const dateGroups: { label: string; groups: SourceGroup[] }[] = [];
-              paged.forEach((g) => {
-                const label = dateSectionLabel(g.latestDate);
-                const last = dateGroups[dateGroups.length - 1];
-                if (last?.label === label) last.groups.push(g);
-                else dateGroups.push({ label, groups: [g] });
-              });
+              // Date headers ("TODAY"/"YESTERDAY") only make sense when
+              // groups are chronologically ordered. For any other sort
+              // (oldest first, by source, by category), the chosen order
+              // isn't date-contiguous, so show one flat list instead of
+              // fragmenting it into scattered mini date-sections.
+              const useDateGrouping = sortBy === "newest";
+              const dateGroups: { label: string; groups: TopicGroup[] }[] = useDateGrouping
+                ? []
+                : [{ label: "", groups: paged }];
+              if (useDateGrouping) {
+                paged.forEach((g) => {
+                  const label = dateSectionLabel(g.latestDate);
+                  const last = dateGroups[dateGroups.length - 1];
+                  if (last?.label === label) last.groups.push(g);
+                  else dateGroups.push({ label, groups: [g] });
+                });
+              }
+
+              const openPanel = (g: TopicGroup) =>
+                openTopicPanel(g.topicKey, g.articles.map((a) => a.id));
 
               return (
                 <div className="space-y-6">
-                  {dateGroups.map((dateGroup) => {
-                    const left = dateGroup.groups.filter((_, i) => i % 2 === 0);
-                    const right = dateGroup.groups.filter(
-                      (_, i) => i % 2 !== 0,
-                    );
-                    return (
-                      <div key={dateGroup.label} className="space-y-3">
-                        {/* Date section header */}
+                  {showSections && topStories.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 px-0.5">
+                        <span className="text-[11px] font-semibold text-primary uppercase tracking-widest flex-shrink-0">
+                          Top stories
+                        </span>
+                        <div className="flex-1 h-px bg-border/40" />
+                      </div>
+                      <TopStoryHero
+                        group={topStories[0]}
+                        trend={trends[topStories[0].topicKey]}
+                        onOpen={() => openPanel(topStories[0])}
+                      />
+                      {topStories.length > 1 && (
+                        <TopicCardGrid groups={topStories.slice(1)} trends={trends} isRead={(id) => read.has(id)} onOpen={openPanel} />
+                      )}
+                    </div>
+                  )}
+
+                  {showSections && trendingOnly.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 px-0.5">
+                        <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-widest flex-shrink-0">
+                          Trending
+                        </span>
+                        <div className="flex-1 h-px bg-border/40" />
+                      </div>
+                      <TopicCardGrid groups={trendingOnly} trends={trends} isRead={(id) => read.has(id)} onOpen={openPanel} />
+                    </div>
+                  )}
+
+                  {showSections && baseForPagination.length > 0 && (
+                    <div className="flex items-center gap-3 px-0.5 pt-2">
+                      <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-widest flex-shrink-0">
+                        Everything else
+                      </span>
+                      <div className="flex-1 h-px bg-border/40" />
+                    </div>
+                  )}
+
+                  {dateGroups.map((dateGroup, i) => (
+                    <div key={dateGroup.label || i} className="space-y-3">
+                      {/* Date section header — omitted when not sorting by recency */}
+                      {dateGroup.label && (
                         <div className="flex items-center gap-3 px-0.5">
                           <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-widest flex-shrink-0">
                             {dateGroup.label}
                           </span>
                           <div className="flex-1 h-px bg-border/40" />
                         </div>
-                        {/* Mobile: single column */}
-                        <div className="flex flex-col gap-3 lg:hidden">
-                          {dateGroup.groups.map((g) => (
-                            <NewsletterSourceCard
-                              key={`${g.sourceEmail}::${g.articles[0]?.source_email_id ?? g.date}`}
-                              group={g}
-                              onOpen={() =>
-                                setPanelSource({
-                                  email: g.sourceEmail,
-                                  emailId: g.articles[0]?.source_email_id ?? "",
-                                })
-                              }
-                            />
-                          ))}
-                        </div>
-                        {/* Desktop: two columns */}
-                        <div className="hidden lg:flex gap-3 items-start">
-                          <div className="flex-1 min-w-0 flex flex-col gap-3">
-                            {left.map((g) => (
-                              <NewsletterSourceCard
-                                key={`${g.sourceEmail}::${g.articles[0]?.source_email_id ?? g.date}`}
-                                group={g}
-                                onOpen={() =>
-                                  setPanelSource({
-                                    email: g.sourceEmail,
-                                    emailId:
-                                      g.articles[0]?.source_email_id ?? "",
-                                  })
-                                }
-                              />
-                            ))}
-                          </div>
-                          <div className="flex-1 min-w-0 flex flex-col gap-3">
-                            {right.map((g) => (
-                              <NewsletterSourceCard
-                                key={`${g.sourceEmail}::${g.articles[0]?.source_email_id ?? g.date}`}
-                                group={g}
-                                onOpen={() =>
-                                  setPanelSource({
-                                    email: g.sourceEmail,
-                                    emailId:
-                                      g.articles[0]?.source_email_id ?? "",
-                                  })
-                                }
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      )}
+                      <TopicCardGrid groups={dateGroup.groups} trends={trends} isRead={(id) => read.has(id)} onOpen={openPanel} />
+                    </div>
+                  ))}
                   {/* Pagination */}
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-3 pt-2 pb-4">
