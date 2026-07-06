@@ -17,6 +17,9 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
+export const SIGNIFICANCE_LEVELS = ["major", "notable", "minor"] as const;
+export type Significance = (typeof SIGNIFICANCE_LEVELS)[number];
+
 export interface NewsletterStory {
   title: string;
   summary: string;
@@ -25,16 +28,25 @@ export interface NewsletterStory {
   category: Category;
   sourceUrl: string;
   topicKey: string;
+  whyItMatters: string;
+  whatToDo: string;
+  significance: Significance;
 }
 
 export async function extractNewsletterStories(
   content: string,
   newsletterTitle: string,
-  links: Array<{ text: string; url: string }> = []
+  links: Array<{ text: string; url: string }> = [],
+  recentTopics: Array<{ topicKey: string; title: string }> = []
 ): Promise<NewsletterStory[]> {
   const linksSection =
     links.length > 0
       ? `Available links found in this email (pick sourceUrl from this list only — do not invent URLs):\n${links.map((l) => `- "${l.text}" → ${l.url}`).join("\n")}\n\n`
+      : "";
+
+  const recentTopicsSection =
+    recentTopics.length > 0
+      ? `\n\nTopics already identified from other newsletters recently (for topicKey matching only — does not change what fields to output):\n${recentTopics.slice(0, 15).map((t) => `- "${t.title}" → topicKey: "${t.topicKey}"`).join("\n")}\nIf a story below is about the same real-world event as one of these, reuse that EXACT topicKey. Otherwise create a new topicKey per the rules above.`
       : "";
 
   const prompt = `You are a newsletter story extractor. Extract every distinct editorial news story from this newsletter.
@@ -48,7 +60,10 @@ ${linksSection}Return a JSON array:
     "keyPoints": ["takeaway 1", "takeaway 2", "takeaway 3", "takeaway 4"],
     "category": "one of: AI & ML | Tech | Science | Business | Finance | Politics | Health | Startups | Other",
     "sourceUrl": "the most relevant URL from the links list above for this story, or empty string if none fits",
-    "topicKey": "kebab-case slug for the main topic, e.g. openai-gpt56-government-approval or europe-us-ac-debate"
+    "topicKey": "kebab-case slug for the main topic, e.g. openai-gpt56-government-approval or europe-us-ac-debate",
+    "whyItMatters": "1-2 sentences on why this specifically matters to a busy founder/builder — distinct from the summary, more pointed about the implication",
+    "whatToDo": "1 short actionable sentence — e.g. 'Worth reading if you're evaluating vector databases' or 'No action needed, just FYI'",
+    "significance": "one of: major | notable | minor — how big a deal this is for a founder/builder audience"
   }
 ]
 
@@ -59,6 +74,10 @@ Rules:
 - Minimum to include: ~3 sentences of real editorial content about a specific topic
 - sourceUrl must come from the links list above — never invent or hallucinate a URL
 - topicKey should be 2-5 kebab words that uniquely identify the news event
+- whyItMatters should not just restate the summary — give the sharper "so what" for someone building a product/company
+- whatToDo should be a concrete, honest recommendation, including "no action needed" when that's true — don't manufacture urgency
+- significance: "major" = genuinely industry-shifting or high-stakes (rare — most stories are NOT this); "notable" = worth knowing about, normal editorial news; "minor" = incremental, niche, or low-stakes. Be conservative with "major" — most days should have few or none
+- Every story object must include ALL fields above (title, summary, simpleExplanation, keyPoints, category, sourceUrl, topicKey, whyItMatters, whatToDo, significance) — never omit whyItMatters, whatToDo, or significance, even when reusing a topicKey from the list below${recentTopicsSection}
 
 Newsletter source: ${newsletterTitle}
 
@@ -119,6 +138,11 @@ Return only a valid JSON array, nothing else.`;
       .replace(/[^a-z0-9-]/g, "-")
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, ""),
+    whyItMatters: String(s.whyItMatters ?? "").trim(),
+    whatToDo: String(s.whatToDo ?? "").trim(),
+    significance: SIGNIFICANCE_LEVELS.includes(s.significance as Significance)
+      ? (s.significance as Significance)
+      : "notable",
   }));
 }
 

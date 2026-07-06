@@ -22,41 +22,42 @@ export interface Summary {
   category: string;
   source_url: string;
   topic_key: string | null;
+  source_type: string | null;
+  why_it_matters: string | null;
+  what_to_do: string | null;
+  significance: string | null;
   is_bookmarked: boolean;
   is_read: boolean;
 }
+
+// Columns that may not exist yet in a given environment's DB (migration not
+// yet applied). saveSummary retries without whichever of these the DB
+// actually rejects, so rollout doesn't require perfectly synced deploys.
+const OPTIONAL_SUMMARY_COLUMNS = ["topic_key", "source_type", "why_it_matters", "what_to_do", "significance"];
 
 export async function saveSummary(
   data: Omit<Summary, "id" | "created_at">,
   userId: string
 ) {
   const payload: Record<string, unknown> = { ...data, user_id: userId };
-  const { data: result, error } = await supabase
-    .from("summaries")
-    .insert([payload])
-    .select();
 
-  if (error) {
-    // topic_key column not yet migrated — retry without it
-    if (error.message?.includes("topic_key")) {
-      const fallback: Record<string, unknown> = { ...payload };
-      delete fallback.topic_key;
-      const { data: result2, error: error2 } = await supabase
-        .from("summaries")
-        .insert([fallback])
-        .select();
-      if (error2) {
-        // Duplicate story from same email — unique constraint too strict, skip silently
-        if (error2.code === "23505") return null;
-        throw error2;
-      }
-      return result2;
-    }
+  for (let attempt = 0; attempt <= OPTIONAL_SUMMARY_COLUMNS.length; attempt++) {
+    const { data: result, error } = await supabase
+      .from("summaries")
+      .insert([payload])
+      .select();
+
+    if (!error) return result;
     // Duplicate story from same email — unique constraint too strict, skip silently
     if (error.code === "23505") return null;
-    throw error;
+
+    const missingColumn = OPTIONAL_SUMMARY_COLUMNS.find(
+      (col) => col in payload && error.message?.includes(col)
+    );
+    if (!missingColumn) throw error;
+    delete payload[missingColumn];
   }
-  return result;
+  return null;
 }
 
 export async function getTodaysSummaries(userId: string): Promise<Summary[]> {
@@ -121,7 +122,155 @@ export async function isEmailProcessed(emailId: string, userId: string): Promise
   return (data?.length ?? 0) > 0;
 }
 
-export async function deleteOldSummaries(userId: string, daysOld = 90): Promise<number> {
+// ISO 8601 week bucket, e.g. "2026-W27" — used to detect a new calendar week
+// without pulling in a date library.
+function isoWeekString(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+export interface TopicOccurrence {
+  weeksSeenCount: number;
+  occurrencesCount: number;
+  lastTitle: string | null;
+}
+
+// Trend memory: tracks how many distinct calendar weeks a topic has recurred
+// in for a user. Kept in its own long-lived table (not `summaries`, which is
+// pruned after 7 days by deleteOldSummaries) so multi-week recurrence can
+// still be reported after the underlying story rows are gone.
+export async function upsertTopicOccurrence(
+  userId: string,
+  topicKey: string,
+  title: string,
+  seenAt: Date = new Date()
+): Promise<void> {
+  const week = isoWeekString(seenAt);
+
+  const { data: existing } = await supabase
+    .from("topic_occurrences")
+    .select("last_seen_week, weeks_seen_count, occurrences_count")
+    .eq("user_id", userId)
+    .eq("topic_key", topicKey)
+    .maybeSingle();
+
+  if (!existing) {
+    await supabase.from("topic_occurrences").insert({
+      user_id: userId,
+      topic_key: topicKey,
+      first_seen_at: seenAt.toISOString(),
+      last_seen_at: seenAt.toISOString(),
+      last_seen_week: week,
+      weeks_seen_count: 1,
+      occurrences_count: 1,
+      last_title: title,
+    });
+    return;
+  }
+
+  const weeksSeenCount =
+    existing.last_seen_week === week ? existing.weeks_seen_count : existing.weeks_seen_count + 1;
+
+  await supabase
+    .from("topic_occurrences")
+    .update({
+      last_seen_at: seenAt.toISOString(),
+      last_seen_week: week,
+      weeks_seen_count: weeksSeenCount,
+      occurrences_count: existing.occurrences_count + 1,
+      last_title: title,
+    })
+    .eq("user_id", userId)
+    .eq("topic_key", topicKey);
+}
+
+// Batched lookup to avoid N+1 queries when rendering a page/digest full of topics.
+export async function getTopicOccurrencesForKeys(
+  userId: string,
+  topicKeys: string[]
+): Promise<Map<string, TopicOccurrence>> {
+  const uniqueKeys = [...new Set(topicKeys)];
+  if (!uniqueKeys.length) return new Map();
+
+  const { data, error } = await supabase
+    .from("topic_occurrences")
+    .select("topic_key, weeks_seen_count, occurrences_count, last_title")
+    .eq("user_id", userId)
+    .in("topic_key", uniqueKeys);
+
+  if (error || !data) return new Map();
+
+  return new Map(
+    data.map((r) => [
+      r.topic_key as string,
+      {
+        weeksSeenCount: r.weeks_seen_count as number,
+        occurrencesCount: r.occurrences_count as number,
+        lastTitle: r.last_title as string | null,
+      },
+    ])
+  );
+}
+
+export interface RecentTopic {
+  topicKey: string;
+  title: string;
+}
+
+// Recently-assigned topics for a user, used to give Claude visibility into
+// what other newsletters already called a given event — without this, each
+// newsletter is extracted in isolation and near-identical stories from
+// different sources get different topic_keys instead of merging.
+export async function getRecentTopics(userId: string, sinceHours = 48): Promise<RecentTopic[]> {
+  const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("topic_occurrences")
+    .select("topic_key, last_title")
+    .eq("user_id", userId)
+    .gte("last_seen_at", since)
+    .order("last_seen_at", { ascending: false })
+    .limit(40);
+
+  if (error || !data) return [];
+  return data
+    .filter((r) => r.last_title)
+    .map((r) => ({ topicKey: r.topic_key as string, title: r.last_title as string }));
+}
+
+// Clears the (heavy) raw newsletter body once it's no longer needed. It's
+// only ever read once, during extraction, and never re-displayed or
+// re-read anywhere afterward — so there's no product reason to keep it
+// around. Keeps the row and its lightweight derived insight (summary,
+// key_points, why_it_matters, what_to_do, topic_key, significance) intact:
+// that's the actual "memory" trend badges and topic history depend on, and
+// it's cheap enough to keep far longer than the raw content.
+export async function clearOldRawContent(userId: string, daysOld = 7): Promise<number> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+  const { data, error } = await supabase
+    .from("summaries")
+    .update({ original_content: "" })
+    .eq("user_id", userId)
+    .eq("is_bookmarked", false)
+    .lt("created_at", cutoffDate.toISOString())
+    .neq("original_content", "")
+    .select();
+
+  if (error) throw error;
+  return data ? data.length : 0;
+}
+
+// Long-term cutoff for the row itself. Much longer than raw-content
+// clearing above — the point of extending retention was specifically so
+// derived insight (and the trend-memory story built on top of it) survives
+// far past 7 days; 180 days is a sane bound rather than deleting nothing
+// ever, while still comfortably covering "this has recurred for weeks."
+export async function deleteOldSummaries(userId: string, daysOld = 180): Promise<number> {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
