@@ -1,6 +1,6 @@
 # Pidgin
 
-> Turn your newsletter backlog into a daily briefing — key points, AI summaries, and ready-to-post LinkedIn/X drafts. No skimming required.
+> Your Morning Brief: here's what changed while you were building — key points, why it matters, and ready-to-post LinkedIn/X drafts. No skimming required.
 
 Live at **[pidgin.site](https://pidgin.site)** · Alpha — invite only · [Request access](https://pidgin.site/waitlist)
 
@@ -123,6 +123,8 @@ create table waitlist (
   created_at timestamptz default now()
 );
 ```
+
+Then also run `supabase/migrations/001_morning_brief.sql` (adds trend-memory tracking and a couple of nullable columns on `summaries`).
 
 ### 5. Run locally
 

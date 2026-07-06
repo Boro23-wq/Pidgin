@@ -6,7 +6,11 @@ import {
   saveSummary,
   isEmailProcessed,
   deleteOldSummaries,
+  clearOldRawContent,
   getBlockedDomains,
+  upsertTopicOccurrence,
+  getRecentTopics,
+  type RecentTopic,
 } from "@/lib/supabase";
 
 const BATCH_SIZE = 3;
@@ -40,7 +44,8 @@ export async function POST(req: Request) {
           return;
         }
 
-        const deletedCount = await deleteOldSummaries(userId, 7);
+        await clearOldRawContent(userId, 7);
+        const deletedCount = await deleteOldSummaries(userId, 180);
         const blockedDomains = await getBlockedDomains(userId);
 
         let emails;
@@ -73,28 +78,37 @@ export async function POST(req: Request) {
         let skippedCount = 0;
         let completedCount = 0;
 
+        // Seeds topic context so Claude can recognize the same real-world
+        // story across different newsletters and reuse its topic_key instead
+        // of inventing a new one. Extended with topics from each chunk as we
+        // go, so later chunks in this run see what earlier chunks found.
+        let knownTopics: RecentTopic[] = await getRecentTopics(userId);
+
         // Process in parallel batches to speed things up
         for (let i = 0; i < emails.length; i += BATCH_SIZE) {
           const chunk = emails.slice(i, i + BATCH_SIZE);
+          const topicsSnapshot = knownTopics;
 
-          await Promise.allSettled(
+          const results = await Promise.allSettled(
             chunk.map(async (email) => {
+              const newTopics: RecentTopic[] = [];
               try {
                 const alreadyProcessed = await isEmailProcessed(email.id, userId);
                 if (alreadyProcessed) {
                   skippedCount++;
-                  return;
+                  return newTopics;
                 }
 
                 const stories = await extractNewsletterStories(
                   email.body,
                   email.subject,
-                  email.links
+                  email.links,
+                  topicsSnapshot
                 );
 
                 if (stories.length === 0) {
                   send({ type: "item-error", title: email.subject, message: "No stories extracted" });
-                  return;
+                  return newTopics;
                 }
 
                 for (const story of stories) {
@@ -112,6 +126,10 @@ export async function POST(req: Request) {
                       source_email_id: email.id,
                       source_url: story.sourceUrl || email.source_url,
                       topic_key: story.topicKey || null,
+                      source_type: "gmail",
+                      why_it_matters: story.whyItMatters || null,
+                      what_to_do: story.whatToDo || null,
+                      significance: story.significance || "notable",
                       processed_date: email.internalDate
                         ? new Date(email.internalDate).toISOString().split("T")[0]
                         : new Date().toISOString().split("T")[0],
@@ -121,7 +139,13 @@ export async function POST(req: Request) {
                     },
                     userId
                   );
-                  if (saved) processedCount++;
+                  if (saved) {
+                    processedCount++;
+                    if (story.topicKey) {
+                      await upsertTopicOccurrence(userId, story.topicKey, story.title);
+                      newTopics.push({ topicKey: story.topicKey, title: story.title });
+                    }
+                  }
                 }
               } catch (err) {
                 console.error("[summarize] email error:", email.subject, err);
@@ -135,8 +159,13 @@ export async function POST(req: Request) {
                   title: email.subject,
                 });
               }
+              return newTopics;
             })
           );
+
+          for (const r of results) {
+            if (r.status === "fulfilled") knownTopics = knownTopics.concat(r.value);
+          }
         }
 
         send({ type: "complete", processedCount, skippedCount, deletedCount });

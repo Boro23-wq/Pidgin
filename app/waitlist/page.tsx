@@ -15,12 +15,12 @@ const ROLES = [
 ];
 const COUNTS = ["1–5", "6–10", "11–20", "20+"];
 const USE_CASES = [
-  "Summarize newsletters",
-  "Find the best ideas",
-  "Save time",
+  "Catch what I'd otherwise miss",
+  "Track recurring trends",
+  "Save time reading",
   "Generate LinkedIn posts",
   "Generate X posts",
-  "Send a daily digest",
+  "Get a daily brief email",
 ];
 const ACCESS_TYPES = ["I want alpha access", "Just keep me posted"];
 
@@ -172,7 +172,7 @@ export default function WaitlistPage() {
               <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
                 {alreadyOnList
                   ? "We already have your email. I'll reach out when your alpha invite is ready."
-                  : "Pidgin is being built for founders and builders who want to stay sharp without drowning in newsletter tabs. I'll reach out when alpha invites open."}
+                  : "Pidgin is being built for founders who don't have time to be their own research analyst. I'll reach out when alpha invites open."}
               </p>
               <button
                 onClick={() => router.push("/")}
@@ -199,7 +199,7 @@ export default function WaitlistPage() {
                   Early alpha · Limited spots
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight mb-4">
-                  Turn your newsletters into
+                  Here&apos;s what changed
                   <br />
                   <span
                     className="bg-clip-text text-transparent"
@@ -208,17 +208,17 @@ export default function WaitlistPage() {
                         "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(199 89% 72%) 100%)",
                     }}
                   >
-                    a daily briefing.
+                    while you were building.
                   </span>
                 </h1>
                 <p className="text-muted-foreground text-base leading-relaxed max-w-lg">
-                  Pidgin turns your newsletter backlog into daily summaries,
-                  useful insights, and ready-to-post LinkedIn/X drafts without
-                  opening Gmail.
+                  Pidgin is a Founder Intelligence System — your newsletters
+                  turned into a ranked daily brief: what changed, why it
+                  matters, what to do about it.
                 </p>
                 <p className="mt-4 text-xs text-muted-foreground/50">
-                  Early alpha spots are limited while we tune the Gmail
-                  filtering and AI summaries.
+                  Early alpha spots are limited while we tune the ranking and
+                  AI extraction.
                 </p>
                 {showInviteOnlyMessage && (
                   <p className="mt-4 rounded-xl border border-primary/25 bg-primary/8 px-4 py-3 text-sm text-primary">

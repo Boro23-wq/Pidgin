@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { getAllSummaries, deleteOldSummaries } from "@/lib/supabase";
+import { getAllSummaries, deleteOldSummaries, getTopicOccurrencesForKeys } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,18 @@ export async function GET() {
 
   try {
     const summaries = await getAllSummaries(userId, 500);
-    return NextResponse.json(summaries, { status: 200 });
+
+    // Bundle trend memory alongside summaries so the dashboard can render
+    // "Nth week running" badges without a second round trip.
+    const topicKeys = summaries
+      .map((s) => s.topic_key)
+      .filter((k): k is string => Boolean(k));
+    const trendMap = await getTopicOccurrencesForKeys(userId, topicKeys);
+
+    return NextResponse.json(
+      { summaries, trends: Object.fromEntries(trendMap) },
+      { status: 200 }
+    );
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

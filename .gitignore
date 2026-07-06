@@ -50,6 +50,7 @@ coverage/
 .vercel
 .turbo
 
-# local docs
+# local docs — institutional knowledge, not for the repo
 PROJECT_SUMMARY.md
 QUICKSTART.md
+docs/

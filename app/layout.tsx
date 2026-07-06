@@ -10,22 +10,22 @@ const APP_URL = "https://pidgin.site";
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "Pidgin — All the signal. None of the noise.",
+    default: "Pidgin — Here's what changed while you were building.",
     template: "%s — Pidgin",
   },
-  description: "Your newsletters, summarized and delivered daily. Cut through inbox noise with AI-powered digests.",
+  description: "A Founder Intelligence System: your newsletters turned into a ranked daily brief — what changed, why it matters, what to do about it.",
   openGraph: {
     type: "website",
     url: APP_URL,
     siteName: "Pidgin",
-    title: "Pidgin — All the signal. None of the noise.",
-    description: "Your newsletters, summarized and delivered daily. Cut through inbox noise with AI-powered digests.",
+    title: "Pidgin — Here's what changed while you were building.",
+    description: "A Founder Intelligence System: your newsletters turned into a ranked daily brief — what changed, why it matters, what to do about it.",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "Pidgin" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pidgin — All the signal. None of the noise.",
-    description: "Your newsletters, summarized and delivered daily.",
+    title: "Pidgin — Here's what changed while you were building.",
+    description: "A Founder Intelligence System: your newsletters turned into a ranked daily brief.",
     images: ["/og.png"],
   },
   icons: {

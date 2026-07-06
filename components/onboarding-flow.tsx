@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Inbox, Check, X, Sparkles, ArrowRight, RefreshCw } from "lucide-react";
+import { Inbox, Check, X, Sparkles, ArrowRight, RefreshCw } from "lucide-react";
 
 interface OnboardingFlowProps {
   gmailConnected: boolean;
@@ -54,7 +54,7 @@ function StepDots({ current }: { current: 1 | 2 | 3 }) {
   );
 }
 
-// ── Step 1: Connect Gmail ──────────────────────────────────────────────────────
+// ── Step 1: Morning Brief value prop → Connect Gmail ────────────────────────────
 function StepConnect() {
   const [connecting, setConnecting] = React.useState(false);
 
@@ -76,7 +76,7 @@ function StepConnect() {
             transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
             className="relative w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center"
           >
-            <Mail className="w-9 h-9 text-primary" />
+            <Sparkles className="w-9 h-9 text-primary" />
           </motion.div>
         </div>
       </div>
@@ -88,7 +88,7 @@ function StepConnect() {
         transition={{ delay: 0.15, duration: 0.35 }}
         className="text-2xl font-bold tracking-tight mb-2"
       >
-        Connect your Gmail
+        Here's what changed while you were building
       </motion.h2>
       <motion.p
         initial={{ opacity: 0 }}
@@ -96,8 +96,8 @@ function StepConnect() {
         transition={{ delay: 0.22, duration: 0.35 }}
         className="text-sm text-muted-foreground leading-relaxed mb-8"
       >
-        Pidgin needs read-only access to find your newsletters.<br />
-        We never touch anything else.
+        Pidgin reads your newsletters and ranks what actually matters.<br />
+        Read-only access — we never send or delete anything.
       </motion.p>
 
       {/* Permissions */}
@@ -133,7 +133,7 @@ function StepConnect() {
           {connecting ? (
             <><RefreshCw className="w-4 h-4 animate-spin" /> Connecting…</>
           ) : (
-            <>Connect Gmail <ArrowRight className="w-4 h-4" /></>
+            <>Get my Morning Brief <ArrowRight className="w-4 h-4" /></>
           )}
         </button>
       </motion.div>

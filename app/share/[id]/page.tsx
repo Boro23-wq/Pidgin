@@ -163,7 +163,7 @@ export default async function SharePage({
                   "linear-gradient(135deg, hsl(199 89% 42%) 0%, hsl(221 83% 53%) 100%)",
               }}
             >
-              Get your own digest →
+              Get your own brief →
             </a>
           </div>
         </article>
