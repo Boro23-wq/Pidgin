@@ -2,6 +2,7 @@
 
 import { SignIn, useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
@@ -10,6 +11,7 @@ import { isInviteOnlyEnabled } from "@/lib/invite-only";
 
 export default function SignInPage() {
   const { isSignedIn, isLoaded } = useUser();
+  const router = useRouter();
   const [hasInviteTicket, setHasInviteTicket] = useState(false);
   const inviteOnly = isInviteOnlyEnabled() && !hasInviteTicket;
 
@@ -20,6 +22,16 @@ export default function SignInPage() {
       new URLSearchParams(window.location.search).has("__clerk_ticket"),
     );
   }, []);
+
+  // Ticket-based sign-in/sign-up can establish a session before <SignIn>
+  // itself ever mounts, since it's gated out below while isSignedIn is
+  // true — without this, the page would freeze on the loading state
+  // forever instead of continuing to the dashboard.
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace("/dashboard");
+    }
+  }, [isLoaded, isSignedIn, router]);
 
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {

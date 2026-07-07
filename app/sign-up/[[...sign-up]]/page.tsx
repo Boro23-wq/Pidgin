@@ -61,6 +61,16 @@ export default function SignUpPage() {
     };
   }, []);
 
+  // Ticket-based sign-up (Clerk invite links) can establish a session
+  // before <SignUp> itself ever mounts, since it's gated out below while
+  // isSignedIn is true — without this, the page would freeze on the
+  // loading state forever instead of continuing to the dashboard.
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace("/dashboard");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
   if (!isLoaded || isSignedIn) {
     return <AppLoading />;
   }
