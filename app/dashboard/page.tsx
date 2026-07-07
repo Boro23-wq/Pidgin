@@ -21,6 +21,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
+  ChevronLeft,
   Mail,
   MailOpen,
   Eye,
@@ -136,7 +137,8 @@ function FilterSelect({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -158,7 +160,10 @@ function FilterSelect({
             <button
               key={o.value}
               type="button"
-              onClick={() => { onChange(o.value); setOpen(false); }}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
               className={`text-left px-3 py-1.5 text-xs whitespace-nowrap hover:bg-secondary/60 transition-colors ${value === o.value ? "text-primary font-medium" : "text-foreground"}`}
             >
               {o.label}
@@ -263,7 +268,9 @@ function extractSenderDomain(email: string): string {
 // Compact source attribution for a topic card — up to 2 sender names, then a
 // "+N" overflow rather than listing every newsletter that covered the story.
 function sourceLabel(group: TopicGroup): string {
-  const names = Array.from(new Set(group.articles.map((a) => extractSenderName(a.source_email))));
+  const names = Array.from(
+    new Set(group.articles.map((a) => extractSenderName(a.source_email))),
+  );
   if (names.length <= 2) return names.join(", ");
   return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
 }
@@ -904,8 +911,8 @@ function DigestOptInToast({
             You&apos;re subscribed!
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            We'll help you focus on what matters most — starting with
-            tomorrow's brief.
+            We'll help you focus on what matters most — starting with tomorrow's
+            brief.
           </p>
         </div>
       ) : (
@@ -922,8 +929,8 @@ function DigestOptInToast({
             </button>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            A curated brief of your most important stories, every morning —
-            no setup needed.
+            A curated brief of your most important stories, every morning — no
+            setup needed.
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -1381,7 +1388,13 @@ function SocialPostPanel({
         {post && (
           <div className="flex items-center gap-0.5">
             {!isLi && (
-              <a href={xShareUrl(post)} target="_blank" rel="noopener noreferrer" title="Share on X" className="p-1 rounded transition-colors text-muted-foreground/60 hover:text-foreground">
+              <a
+                href={xShareUrl(post)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Share on X"
+                className="p-1 rounded transition-colors text-muted-foreground/60 hover:text-foreground"
+              >
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             )}
@@ -1390,7 +1403,11 @@ function SocialPostPanel({
               title={isCopied ? "Copied!" : "Copy"}
               className={`p-1 rounded transition-colors ${isCopied ? "text-green-400" : "text-muted-foreground/60 hover:text-foreground"}`}
             >
-              {isCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {isCopied ? (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
             </button>
             <button
               onClick={() => onGenerate(summaryId, platform)}
@@ -1398,7 +1415,11 @@ function SocialPostPanel({
               disabled={isGenerating}
               className="p-1 rounded transition-colors text-muted-foreground/60 hover:text-foreground disabled:opacity-40"
             >
-              {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              {isGenerating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              )}
             </button>
           </div>
         )}
@@ -1482,7 +1503,11 @@ function groupSummariesByTopic(summaries: Summary[]): TopicGroup[] {
   return Array.from(map.values());
 }
 
-const SIGNIFICANCE_WEIGHT: Record<string, number> = { major: 10, notable: 4, minor: 0 };
+const SIGNIFICANCE_WEIGHT: Record<string, number> = {
+  major: 10,
+  notable: 4,
+  minor: 0,
+};
 
 // Composite "how important is this" score, combining three signals:
 // corroboration (multiple sources covering the same story), recurrence
@@ -1561,7 +1586,12 @@ function TopicCard({
           )}
           {isRecurring && (
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-amber-500/30 bg-amber-500/10 text-amber-400">
-              {trend!.weeksSeenCount === 2 ? "2nd" : trend!.weeksSeenCount === 3 ? "3rd" : `${trend!.weeksSeenCount}th`} week running
+              {trend!.weeksSeenCount === 2
+                ? "2nd"
+                : trend!.weeksSeenCount === 3
+                  ? "3rd"
+                  : `${trend!.weeksSeenCount}th`}{" "}
+              week running
             </span>
           )}
         </div>
@@ -1612,7 +1642,12 @@ function TopStoryHero({
         )}
         {isRecurring && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-amber-500/30 bg-amber-500/10 text-amber-400">
-            {trend!.weeksSeenCount === 2 ? "2nd" : trend!.weeksSeenCount === 3 ? "3rd" : `${trend!.weeksSeenCount}th`} week running
+            {trend!.weeksSeenCount === 2
+              ? "2nd"
+              : trend!.weeksSeenCount === 3
+                ? "3rd"
+                : `${trend!.weeksSeenCount}th`}{" "}
+            week running
           </span>
         )}
       </div>
@@ -1650,18 +1685,36 @@ function TopicCardGrid({
     <>
       <div className="flex flex-col gap-3 lg:hidden">
         {groups.map((g) => (
-          <TopicCard key={g.topicKey} group={g} trend={trends[g.topicKey]} isRead={isRead} onOpen={() => onOpen(g)} />
+          <TopicCard
+            key={g.topicKey}
+            group={g}
+            trend={trends[g.topicKey]}
+            isRead={isRead}
+            onOpen={() => onOpen(g)}
+          />
         ))}
       </div>
       <div className="hidden lg:flex gap-3 items-start">
         <div className="flex-1 min-w-0 flex flex-col gap-3">
           {left.map((g) => (
-            <TopicCard key={g.topicKey} group={g} trend={trends[g.topicKey]} isRead={isRead} onOpen={() => onOpen(g)} />
+            <TopicCard
+              key={g.topicKey}
+              group={g}
+              trend={trends[g.topicKey]}
+              isRead={isRead}
+              onOpen={() => onOpen(g)}
+            />
           ))}
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-3">
           {right.map((g) => (
-            <TopicCard key={g.topicKey} group={g} trend={trends[g.topicKey]} isRead={isRead} onOpen={() => onOpen(g)} />
+            <TopicCard
+              key={g.topicKey}
+              group={g}
+              trend={trends[g.topicKey]}
+              isRead={isRead}
+              onOpen={() => onOpen(g)}
+            />
           ))}
         </div>
       </div>
@@ -1680,14 +1733,22 @@ interface DismissedEmail {
   dismissed_at: string | null;
 }
 
-function DismissedEmailsPanel({ onClose, onCountChange }: { onClose: () => void; onCountChange: (n: number) => void }) {
+function DismissedEmailsPanel({
+  onClose,
+  onCountChange,
+}: {
+  onClose: () => void;
+  onCountChange: (n: number) => void;
+}) {
   const [emails, setEmails] = useState<DismissedEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, []);
 
   useEffect(() => {
@@ -1700,13 +1761,19 @@ function DismissedEmailsPanel({ onClose, onCountChange }: { onClose: () => void;
 
   const handleRestore = async (emailId: string) => {
     setRestoring((prev) => new Set(prev).add(emailId));
-    await fetch(`/api/dismiss?emailId=${encodeURIComponent(emailId)}`, { method: "DELETE" }).catch(() => {});
+    await fetch(`/api/dismiss?emailId=${encodeURIComponent(emailId)}`, {
+      method: "DELETE",
+    }).catch(() => {});
     setEmails((prev) => {
       const next = prev.filter((e) => e.email_id !== emailId);
       onCountChange(next.length);
       return next;
     });
-    setRestoring((prev) => { const s = new Set(prev); s.delete(emailId); return s; });
+    setRestoring((prev) => {
+      const s = new Set(prev);
+      s.delete(emailId);
+      return s;
+    });
   };
 
   return (
@@ -1727,10 +1794,17 @@ function DismissedEmailsPanel({ onClose, onCountChange }: { onClose: () => void;
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
           <div>
-            <p className="text-sm font-semibold text-foreground">Dismissed emails</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Restore to see them in future scans</p>
+            <p className="text-sm font-semibold text-foreground">
+              Dismissed emails
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Restore to see them in future scans
+            </p>
           </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -1743,22 +1817,33 @@ function DismissedEmailsPanel({ onClose, onCountChange }: { onClose: () => void;
           ) : emails.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
               <CheckCheck className="w-8 h-8 text-muted-foreground/30 mb-3" />
-              <p className="text-sm font-medium text-foreground">No dismissed emails</p>
-              <p className="text-xs text-muted-foreground mt-1">Emails Claude flags as non-newsletters appear here.</p>
+              <p className="text-sm font-medium text-foreground">
+                No dismissed emails
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Emails Claude flags as non-newsletters appear here.
+              </p>
             </div>
           ) : (
             <ul className="divide-y divide-border/50">
               {emails.map((e) => (
-                <li key={e.email_id} className="flex items-start gap-3 px-4 py-3">
+                <li
+                  key={e.email_id}
+                  className="flex items-start gap-3 px-4 py-3"
+                >
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-foreground truncate">
                       {e.from_name ?? e.from_email ?? "Unknown sender"}
                     </p>
                     {e.subject && (
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{e.subject}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {e.subject}
+                      </p>
                     )}
                     {!e.from_name && !e.from_email && (
-                      <p className="text-xs text-muted-foreground/40 mt-0.5">No preview available</p>
+                      <p className="text-xs text-muted-foreground/40 mt-0.5">
+                        No preview available
+                      </p>
                     )}
                   </div>
                   <button
@@ -1984,7 +2069,10 @@ function NewsletterCard({
           <Mail className="w-3 h-3" />
           {senderName}
           {!isRead && (
-            <span className="w-1.5 h-1.5 rounded-full bg-primary ml-1" aria-hidden />
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-primary ml-1"
+              aria-hidden
+            />
           )}
         </span>
         <span className="text-[10px] text-muted-foreground/40">
@@ -2107,9 +2195,7 @@ function NewsletterCard({
             )}
             <button
               onClick={() => onFlag(summary.id)}
-              title={
-                isFlagged ? "Flagged as inaccurate" : "Flag as inaccurate"
-              }
+              title={isFlagged ? "Flagged as inaccurate" : "Flag as inaccurate"}
               className={`inline-flex items-center gap-1 text-xs transition-colors ${isFlagged ? "text-red-500" : "text-muted-foreground/70 hover:text-red-600"}`}
             >
               <ThumbsDown className="w-3.5 h-3.5" />
@@ -2231,7 +2317,7 @@ export default function Dashboard() {
         });
       }
     },
-    [read, summaries, ph]
+    [read, summaries, ph],
   );
   const [showDismissedPanel, setShowDismissedPanel] = useState(false);
   const [dismissedCount, setDismissedCount] = useState(0);
@@ -2244,6 +2330,8 @@ export default function Dashboard() {
     "idle" | "loading" | "sent" | "empty" | "error"
   >("idle");
   const [page, setPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
+  useEffect(() => setPageInput(String(page)), [page]);
   const PER_PAGE = 20;
 
   const searchRef = useRef<HTMLInputElement>(null);
@@ -2288,14 +2376,19 @@ export default function Dashboard() {
     try {
       const res = await fetch("/api/summaries", { cache: "no-store" });
       const data = await res.json();
-      const rawSummaries: Summary[] = Array.isArray(data) ? data : (data.summaries ?? []);
+      const rawSummaries: Summary[] = Array.isArray(data)
+        ? data
+        : (data.summaries ?? []);
       // Supabase returns timestamps without a timezone suffix — append Z so
       // JavaScript parses them as UTC instead of local time.
       const normalized = rawSummaries.map((s) => ({
         ...s,
-        created_at: s.created_at && !s.created_at.endsWith("Z") && !s.created_at.includes("+")
-          ? s.created_at + "Z"
-          : s.created_at,
+        created_at:
+          s.created_at &&
+          !s.created_at.endsWith("Z") &&
+          !s.created_at.includes("+")
+            ? s.created_at + "Z"
+            : s.created_at,
       }));
       setSummaries(normalized);
       setTrends(Array.isArray(data) ? {} : (data.trends ?? {}));
@@ -2424,7 +2517,12 @@ export default function Dashboard() {
     // Deselected newsletter-tab items are kept so they reappear on the next scan.
     const unselected = (scanResult ?? [])
       .filter((n) => shouldFlagEmail(n) && !emailIds.includes(n.id))
-      .map((n) => ({ id: n.id, fromName: n.fromName, fromEmail: n.fromEmail, subject: n.subject }));
+      .map((n) => ({
+        id: n.id,
+        fromName: n.fromName,
+        fromEmail: n.fromEmail,
+        subject: n.subject,
+      }));
     if (unselected.length) {
       fetch("/api/dismiss", {
         method: "POST",
@@ -2792,7 +2890,11 @@ export default function Dashboard() {
   // sort choices (by source/category/oldest) show the plain flat list.
   const { topStories, trendingOnly, remainingGroups } = useMemo(() => {
     if (sortBy !== "newest") {
-      return { topStories: [] as TopicGroup[], trendingOnly: [] as TopicGroup[], remainingGroups: topicGroups };
+      return {
+        topStories: [] as TopicGroup[],
+        trendingOnly: [] as TopicGroup[],
+        remainingGroups: topicGroups,
+      };
     }
 
     const scored = topicGroups.map((group) => ({
@@ -2817,7 +2919,11 @@ export default function Dashboard() {
       (g) => !topKeys.has(g.topicKey) && !trendingKeys.has(g.topicKey),
     );
 
-    return { topStories: top, trendingOnly: trending, remainingGroups: remaining };
+    return {
+      topStories: top,
+      trendingOnly: trending,
+      remainingGroups: remaining,
+    };
   }, [topicGroups, trends, sortBy]);
 
   const unreadCount = useMemo(
@@ -2838,7 +2944,10 @@ export default function Dashboard() {
     const trendingTopics = new Set(
       summaries
         .map((s) => s.topic_key)
-        .filter((k): k is string => k != null && (trends[k]?.weeksSeenCount ?? 0) >= 2),
+        .filter(
+          (k): k is string =>
+            k != null && (trends[k]?.weeksSeenCount ?? 0) >= 2,
+        ),
     );
     return {
       total: summaries.length,
@@ -3011,8 +3120,8 @@ export default function Dashboard() {
                   </h1>
                   <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
                     Pidgin reads your newsletters and ranks what actually
-                    matters — a daily brief of what changed, why it matters,
-                    and what to do about it.
+                    matters — a daily brief of what changed, why it matters, and
+                    what to do about it.
                   </p>
                 </div>
               </div>
@@ -3131,41 +3240,42 @@ export default function Dashboard() {
                 {/* Dev-only debugging tool — manual "send digest now" doesn't
                     fit the product's automatic-delivery pitch, kept for
                     testing but hidden from real users. */}
-                {summaries.length > 0 && process.env.NODE_ENV === "development" && (
-                  <button
-                    onClick={handleSendDigest}
-                    disabled={digestState === "loading"}
-                    title="Email me today's digest"
-                    className={`h-9 px-3.5 rounded-full border text-sm font-medium flex items-center gap-1.5 transition-all ${
-                      digestState === "sent"
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-                        : digestState === "error"
-                          ? "border-red-500/40 bg-red-500/10 text-red-400"
-                          : digestState === "empty"
-                            ? "border-border bg-secondary/40 text-muted-foreground"
-                            : "border-border bg-secondary/40 text-muted-foreground hover:text-foreground hover:border-border/80"
-                    }`}
-                  >
-                    {digestState === "loading" ? (
-                      <>
-                        <span className="w-3.5 h-3.5 rounded-full border border-current border-t-transparent animate-spin" />{" "}
-                        Sending…
-                      </>
-                    ) : digestState === "sent" ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Digest sent
-                      </>
-                    ) : digestState === "error" ? (
-                      <>Failed — check console</>
-                    ) : digestState === "empty" ? (
-                      <>Nothing major today</>
-                    ) : (
-                      <>
-                        <Mail className="w-3.5 h-3.5" /> Send digest
-                      </>
-                    )}
-                  </button>
-                )}
+                {summaries.length > 0 &&
+                  process.env.NODE_ENV === "development" && (
+                    <button
+                      onClick={handleSendDigest}
+                      disabled={digestState === "loading"}
+                      title="Email me today's digest"
+                      className={`h-9 px-3.5 rounded-full border text-sm font-medium flex items-center gap-1.5 transition-all ${
+                        digestState === "sent"
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                          : digestState === "error"
+                            ? "border-red-500/40 bg-red-500/10 text-red-400"
+                            : digestState === "empty"
+                              ? "border-border bg-secondary/40 text-muted-foreground"
+                              : "border-border bg-secondary/40 text-muted-foreground hover:text-foreground hover:border-border/80"
+                      }`}
+                    >
+                      {digestState === "loading" ? (
+                        <>
+                          <span className="w-3.5 h-3.5 rounded-full border border-current border-t-transparent animate-spin" />{" "}
+                          Sending…
+                        </>
+                      ) : digestState === "sent" ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Digest sent
+                        </>
+                      ) : digestState === "error" ? (
+                        <>Failed — check console</>
+                      ) : digestState === "empty" ? (
+                        <>Nothing major today</>
+                      ) : (
+                        <>
+                          <Mail className="w-3.5 h-3.5" /> Send digest
+                        </>
+                      )}
+                    </button>
+                  )}
                 <SyncButton
                   onScan={handleScan}
                   scanning={scanning}
@@ -3333,7 +3443,9 @@ export default function Dashboard() {
                     transition={{ duration: 0.18, ease: "easeInOut" }}
                     onAnimationStart={() => setAdvancedAnimating(true)}
                     onAnimationComplete={() => setAdvancedAnimating(false)}
-                    className={advancedAnimating ? "overflow-hidden" : "overflow-visible"}
+                    className={
+                      advancedAnimating ? "overflow-hidden" : "overflow-visible"
+                    }
                   >
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <div className="relative">
@@ -3396,7 +3508,8 @@ export default function Dashboard() {
 
                       {!loading && (
                         <span className="ml-auto text-xs text-muted-foreground">
-                          {topicGroups.length} {topicGroups.length !== 1 ? "stories" : "story"}
+                          {topicGroups.length}{" "}
+                          {topicGroups.length !== 1 ? "stories" : "story"}
                         </span>
                       )}
                     </div>
@@ -3440,8 +3553,12 @@ export default function Dashboard() {
             </div>
           ) : (
             (() => {
-              const showSections = sortBy === "newest" && (topStories.length > 0 || trendingOnly.length > 0);
-              const baseForPagination = showSections ? remainingGroups : topicGroups;
+              const showSections =
+                sortBy === "newest" &&
+                (topStories.length > 0 || trendingOnly.length > 0);
+              const baseForPagination = showSections
+                ? remainingGroups
+                : topicGroups;
 
               const totalPages = Math.ceil(baseForPagination.length / PER_PAGE);
               const paged = baseForPagination.slice(
@@ -3455,9 +3572,8 @@ export default function Dashboard() {
               // isn't date-contiguous, so show one flat list instead of
               // fragmenting it into scattered mini date-sections.
               const useDateGrouping = sortBy === "newest";
-              const dateGroups: { label: string; groups: TopicGroup[] }[] = useDateGrouping
-                ? []
-                : [{ label: "", groups: paged }];
+              const dateGroups: { label: string; groups: TopicGroup[] }[] =
+                useDateGrouping ? [] : [{ label: "", groups: paged }];
               if (useDateGrouping) {
                 paged.forEach((g) => {
                   const label = dateSectionLabel(g.latestDate);
@@ -3468,7 +3584,10 @@ export default function Dashboard() {
               }
 
               const openPanel = (g: TopicGroup) =>
-                openTopicPanel(g.topicKey, g.articles.map((a) => a.id));
+                openTopicPanel(
+                  g.topicKey,
+                  g.articles.map((a) => a.id),
+                );
 
               return (
                 <div className="space-y-6">
@@ -3486,7 +3605,12 @@ export default function Dashboard() {
                         onOpen={() => openPanel(topStories[0])}
                       />
                       {topStories.length > 1 && (
-                        <TopicCardGrid groups={topStories.slice(1)} trends={trends} isRead={(id) => read.has(id)} onOpen={openPanel} />
+                        <TopicCardGrid
+                          groups={topStories.slice(1)}
+                          trends={trends}
+                          isRead={(id) => read.has(id)}
+                          onOpen={openPanel}
+                        />
                       )}
                     </div>
                   )}
@@ -3499,12 +3623,18 @@ export default function Dashboard() {
                         </span>
                         <div className="flex-1 h-px bg-border/40" />
                       </div>
-                      <TopicCardGrid groups={trendingOnly} trends={trends} isRead={(id) => read.has(id)} onOpen={openPanel} />
+                      <TopicCardGrid
+                        groups={trendingOnly}
+                        trends={trends}
+                        isRead={(id) => read.has(id)}
+                        onOpen={openPanel}
+                      />
                     </div>
                   )}
 
                   {showSections && baseForPagination.length > 0 && (
                     <div className="flex items-center gap-3 px-0.5 pt-2">
+                      <div className="flex-1 h-px bg-border/40" />
                       <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-widest flex-shrink-0">
                         Everything else
                       </span>
@@ -3523,34 +3653,62 @@ export default function Dashboard() {
                           <div className="flex-1 h-px bg-border/40" />
                         </div>
                       )}
-                      <TopicCardGrid groups={dateGroup.groups} trends={trends} isRead={(id) => read.has(id)} onOpen={openPanel} />
+                      <TopicCardGrid
+                        groups={dateGroup.groups}
+                        trends={trends}
+                        isRead={(id) => read.has(id)}
+                        onOpen={openPanel}
+                      />
                     </div>
                   ))}
                   {/* Pagination */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-3 pt-2 pb-4">
+                    <div className="flex items-center justify-center gap-2 pt-2 pb-4">
                       <button
                         disabled={page === 1}
                         onClick={() => {
                           setPage((p) => p - 1);
                           window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
-                        className="h-8 px-3 text-xs rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        aria-label="Previous page"
+                        className="h-8 w-8 flex items-center justify-center rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        ← Prev
+                        <ChevronLeft className="w-4 h-4" />
                       </button>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {page} / {totalPages}
-                      </span>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={pageInput}
+                          onChange={(e) =>
+                            setPageInput(e.target.value.replace(/[^0-9]/g, ""))
+                          }
+                          onBlur={() => setPageInput(String(page))}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            const target = Math.min(
+                              Math.max(parseInt(pageInput, 10) || 1, 1),
+                              totalPages,
+                            );
+                            setPage(target);
+                            setPageInput(String(target));
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                            e.currentTarget.blur();
+                          }}
+                          className="h-8 w-9 rounded-lg border border-border/60 bg-transparent text-center tabular-nums text-foreground focus:outline-none focus:border-primary/50"
+                        />
+                        <span className="tabular-nums">of {totalPages}</span>
+                      </div>
                       <button
                         disabled={page === totalPages}
                         onClick={() => {
                           setPage((p) => p + 1);
                           window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
-                        className="h-8 px-3 text-xs rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        aria-label="Next page"
+                        className="h-8 w-8 flex items-center justify-center rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        Next →
+                        <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
                   )}
