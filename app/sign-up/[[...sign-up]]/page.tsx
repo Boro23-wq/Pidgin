@@ -15,7 +15,14 @@ export default function SignUpPage() {
   const inviteOnly = isInviteOnlyEnabled();
 
   useEffect(() => {
-    if (inviteOnly) {
+    // Clerk invite links carry a __clerk_ticket param — a legitimately
+    // invited person must reach the actual <SignUp> component (which
+    // honors the ticket) instead of being bounced to the waitlist just
+    // because the site is invite-only by default.
+    const hasInviteTicket = new URLSearchParams(window.location.search).has(
+      "__clerk_ticket",
+    );
+    if (inviteOnly && !hasInviteTicket) {
       router.replace("/waitlist");
       return;
     }

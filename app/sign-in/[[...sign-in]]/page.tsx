@@ -1,7 +1,7 @@
 "use client";
 
 import { SignIn, useUser } from "@clerk/nextjs";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AuthLeftPanel } from "@/components/auth-left-panel";
 import AppLoading from "@/components/app-loading";
@@ -10,7 +10,16 @@ import { isInviteOnlyEnabled } from "@/lib/invite-only";
 
 export default function SignInPage() {
   const { isSignedIn, isLoaded } = useUser();
-  const inviteOnly = isInviteOnlyEnabled();
+  const [hasInviteTicket, setHasInviteTicket] = useState(false);
+  const inviteOnly = isInviteOnlyEnabled() && !hasInviteTicket;
+
+  useEffect(() => {
+    // Clerk invite links carry a __clerk_ticket param — don't treat a
+    // legitimately invited person as gated by the site-wide invite-only flag.
+    setHasInviteTicket(
+      new URLSearchParams(window.location.search).has("__clerk_ticket"),
+    );
+  }, []);
 
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
