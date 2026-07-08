@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { getValidTokens, GmailReconnectRequiredError } from "@/lib/tokens";
+import { getValidTokens, GmailReconnectRequiredError, isGmailReconnectRequiredError } from "@/lib/tokens";
 import { fetchNewsletterMetadata } from "@/lib/gmail";
 import {
   supabase,
@@ -25,23 +25,13 @@ function getErrorStatus(error: unknown) {
 }
 
 function getScanErrorMessage(error: unknown) {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "Unknown error";
-
-  const lowerMessage = message.toLowerCase();
-
-  if (
-    lowerMessage.includes("invalid_grant") ||
-    lowerMessage.includes("invalid credentials") ||
-    lowerMessage.includes("insufficient authentication scopes")
-  ) {
+  if (isGmailReconnectRequiredError(error)) {
     return "Gmail access needs to be reconnected. Please reconnect Gmail and try again.";
   }
 
+  const message =
+    error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const lowerMessage = message.toLowerCase();
   if (lowerMessage.includes("rate limit") || lowerMessage.includes("quota")) {
     return "Gmail is limiting requests right now. Please wait a minute and try again.";
   }
@@ -145,7 +135,10 @@ export async function POST() {
   } catch (error) {
     console.error("[scan] failed:", error);
     return Response.json(
-      { error: getScanErrorMessage(error) },
+      {
+        error: getScanErrorMessage(error),
+        code: isGmailReconnectRequiredError(error) ? "reconnect_required" : undefined,
+      },
       { status: getErrorStatus(error) },
     );
   }

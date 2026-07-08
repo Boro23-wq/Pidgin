@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const clerkUserId = verifyOAuthState(searchParams.get("state"));
 
   if (!code || !clerkUserId) {
-    return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?error=oauth_failed`);
+    return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=oauth_failed`);
   }
 
   const oauth2Client = new google.auth.OAuth2(
@@ -23,6 +23,20 @@ export async function GET(request: NextRequest) {
   try {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
+
+    // Google's consent screen lets a user deselect individual scopes (e.g.
+    // uncheck the Gmail line while still approving basic profile/email) and
+    // still complete the flow successfully — the token exchange doesn't
+    // fail, it just comes back with fewer scopes than requested. Saving
+    // that token as if the connection succeeded means every future scan
+    // silently 403s with "Insufficient Permission" instead of ever telling
+    // the user Gmail access itself was never actually granted.
+    const grantedScopes = (tokens.scope ?? "").split(" ");
+    if (!grantedScopes.includes("https://www.googleapis.com/auth/gmail.readonly")) {
+      return Response.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=gmail_scope_missing`,
+      );
+    }
 
     // Get the user's Gmail address
     const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
@@ -37,9 +51,9 @@ export async function GET(request: NextRequest) {
       gmailAddress
     );
 
-    return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?gmail=connected`);
+    return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?gmail=connected`);
   } catch (err) {
     console.error("OAuth callback error:", err);
-    return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?error=oauth_failed`);
+    return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=oauth_failed`);
   }
 }

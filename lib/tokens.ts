@@ -20,6 +20,39 @@ export class GmailReconnectRequiredError extends Error {
   }
 }
 
+// Covers both an expired/revoked refresh token (invalid_grant, thrown as
+// GmailReconnectRequiredError above) and a token that Google accepted but
+// that was granted with fewer scopes than requested — e.g. a user unchecked
+// the Gmail permission box on the consent screen and the OAuth flow still
+// "succeeded". Google's Gmail API returns "Insufficient Permission" /
+// reason "insufficientPermissions" for the latter at request time, not at
+// token-exchange time, so it surfaces from a completely different code path
+// (a live Gmail API call, not getValidTokens) but needs the identical fix:
+// the user has to reconnect and actually grant Gmail access this time.
+export function isGmailReconnectRequiredError(error: unknown): boolean {
+  if (error instanceof GmailReconnectRequiredError) return true;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : (() => {
+            try {
+              return JSON.stringify(error);
+            } catch {
+              return "";
+            }
+          })();
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("invalid_grant") ||
+    lower.includes("invalid credentials") ||
+    lower.includes("insufficient authentication scopes") ||
+    lower.includes("insufficient permission") ||
+    lower.includes("insufficientpermissions")
+  );
+}
+
 export async function getValidTokens(clerkUserId: string): Promise<UserTokens | null> {
   const { data, error } = await supabase
     .from("user_tokens")

@@ -2508,6 +2508,35 @@ export default function Dashboard() {
       .catch(() => {});
   }, [fetchSummaries]);
 
+  // Surfaces the Gmail OAuth callback's redirect result (?error=... /
+  // ?gmail=connected) via the same sync-error overlay used elsewhere, since
+  // nothing previously read these query params at all — a failed or
+  // partially-granted connection landed the user back here with no visible
+  // feedback whatsoever. Strips the param so a refresh doesn't re-trigger it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("error");
+    if (oauthError === "gmail_scope_missing") {
+      setSyncError(
+        "Gmail wasn't fully connected — the Gmail permission wasn't granted during sign-in. Please reconnect and make sure to approve Gmail access.",
+      );
+      setSyncErrorCode("reconnect_required");
+    } else if (oauthError === "oauth_failed") {
+      setSyncError("Connecting Gmail didn't go through. Please try again.");
+      setSyncErrorCode(null);
+    }
+    if (oauthError || params.get("gmail")) {
+      params.delete("error");
+      params.delete("gmail");
+      const rest = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${rest ? `?${rest}` : ""}`,
+      );
+    }
+  }, []);
+
   // ── Scan phase (opens selection modal) ────────────────────────────────────
   const handleSendDigest = async () => {
     setDigestState("loading");
