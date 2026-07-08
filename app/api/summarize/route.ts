@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { fetchNewsletterEmails, getEmailById } from "@/lib/gmail";
 import { extractNewsletterStories } from "@/lib/claude";
 import { getValidTokens, GmailReconnectRequiredError, isGmailReconnectRequiredError } from "@/lib/tokens";
+import * as Sentry from "@sentry/nextjs";
 import {
   saveSummary,
   isEmailProcessed,
@@ -195,6 +196,10 @@ export async function POST(req: Request) {
             code: "reconnect_required",
           });
         } else {
+          // Same reasoning as /api/scan: the reconnect case is already fully
+          // understood and handled, so only capture genuinely unexpected
+          // failures here.
+          Sentry.captureException(err);
           send({ type: "error", message: String(err) });
         }
       }

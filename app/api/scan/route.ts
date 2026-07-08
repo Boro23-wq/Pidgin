@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { getValidTokens, GmailReconnectRequiredError, isGmailReconnectRequiredError } from "@/lib/tokens";
+import * as Sentry from "@sentry/nextjs";
 import { fetchNewsletterMetadata } from "@/lib/gmail";
 import {
   supabase,
@@ -134,6 +135,14 @@ export async function POST() {
     return Response.json({ newsletters: classified, isFirstSync });
   } catch (error) {
     console.error("[scan] failed:", error);
+    // Skip Sentry for the reconnect case — it's already fully understood
+    // (expired/revoked token or a partial OAuth grant) and surfaced to the
+    // user via the "Reconnect Gmail" UI, so capturing it here would just add
+    // noise for something we already have a complete fix for. Anything else
+    // reaching this point is a genuinely unexpected Gmail/scan failure.
+    if (!isGmailReconnectRequiredError(error)) {
+      Sentry.captureException(error);
+    }
     return Response.json(
       {
         error: getScanErrorMessage(error),

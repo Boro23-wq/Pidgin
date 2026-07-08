@@ -2333,6 +2333,7 @@ export default function Dashboard() {
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [summariesLoadError, setSummariesLoadError] = useState(false);
   const [trends, setTrends] = useState<Record<string, TopicTrend>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false); // importing via SSE
@@ -2459,6 +2460,19 @@ export default function Dashboard() {
   const fetchSummaries = useCallback(async () => {
     try {
       const res = await fetch("/api/summaries", { cache: "no-store" });
+      // A non-2xx response (e.g. a transient 401 while a brand-new session
+      // is still settling) still parses as valid JSON — { error: "..." } —
+      // which would otherwise silently coerce to an empty summaries array
+      // via the `?? []` fallback below, indistinguishable from "this user
+      // genuinely has zero stories." That previously sent users straight to
+      // the onboarding/scan screen even right after a successful import.
+      // Bail out without touching `summaries` state at all so a transient
+      // failure can't stomp real data with a false empty state.
+      if (!res.ok) {
+        console.error("[fetchSummaries] failed:", res.status);
+        setSummariesLoadError(true);
+        return;
+      }
       const data = await res.json();
       const rawSummaries: Summary[] = Array.isArray(data)
         ? data
@@ -2474,10 +2488,12 @@ export default function Dashboard() {
             ? s.created_at + "Z"
             : s.created_at,
       }));
+      setSummariesLoadError(false);
       setSummaries(normalized);
       setTrends(Array.isArray(data) ? {} : (data.trends ?? {}));
-    } catch {
-      setSummaries([]);
+    } catch (err) {
+      console.error("[fetchSummaries] failed:", err);
+      setSummariesLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -3396,11 +3412,17 @@ export default function Dashboard() {
                       )}
                     </button>
                   )}
-                <SyncButton
-                  onScan={handleScan}
-                  scanning={scanning}
-                  disabled={loading || syncing}
-                />
+                {/* Hidden until there's at least one story — before that,
+                    OnboardingFlow owns the "start a scan" call-to-action, so
+                    this would otherwise render as a second, redundant sync
+                    button in the empty/first-time state. */}
+                {summaries.length > 0 && (
+                  <SyncButton
+                    onScan={handleScan}
+                    scanning={scanning}
+                    disabled={loading || syncing}
+                  />
+                )}
               </div>
             )}
           </motion.div>
@@ -3648,6 +3670,25 @@ export default function Dashboard() {
                   className="h-28 rounded-lg border border-border bg-card animate-pulse"
                 />
               ))}
+            </div>
+          ) : summariesLoadError ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-4">
+                <RefreshCw className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium mb-1">Couldn&apos;t load your brief</p>
+              <p className="text-xs text-muted-foreground mb-4 max-w-xs">
+                Something went wrong loading your stories — this doesn&apos;t mean you have none, we just couldn&apos;t check right now.
+              </p>
+              <button
+                onClick={() => {
+                  setLoading(true);
+                  fetchSummaries();
+                }}
+                className="text-xs text-primary font-medium"
+              >
+                Try again
+              </button>
             </div>
           ) : summaries.length === 0 && gmailConnected !== null ? (
             <OnboardingFlow
