@@ -1681,6 +1681,65 @@ function TopStoryHero({
   );
 }
 
+// A clickable section header (label + divider line(s)) that expands/collapses
+// its own body with a height/opacity animation — shared by every section of
+// the brief (Top stories, Trending, Everything else, and each date group).
+function CollapsibleSection({
+  label,
+  labelClassName,
+  dividerBefore,
+  showDivider = true,
+  collapsed,
+  onToggle,
+  children,
+}: {
+  label: string;
+  labelClassName: string;
+  dividerBefore?: boolean;
+  showDivider?: boolean;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 px-0.5 group/section"
+      >
+        {dividerBefore && showDivider && <div className="flex-1 h-px bg-border/40" />}
+        <span
+          className={`text-[11px] font-semibold uppercase tracking-widest flex-shrink-0 transition-colors ${labelClassName}`}
+        >
+          {label}
+        </span>
+        <motion.span
+          animate={{ rotate: collapsed ? -90 : 0 }}
+          transition={{ duration: 0.2, ease: "easeInOut" }}
+          className="flex-shrink-0 text-muted-foreground/30 group-hover/section:text-muted-foreground/70 transition-colors"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </motion.span>
+        {showDivider && <div className="flex-1 h-px bg-border/40" />}
+      </button>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-col gap-3">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // Mobile: single column. Desktop: split into two columns. Shared by every
 // section of the brief (top stories, trending, everything-else-by-date).
 function TopicCardGrid({
@@ -2349,6 +2408,15 @@ export default function Dashboard() {
   const [pageInput, setPageInput] = useState("1");
   useEffect(() => setPageInput(String(page)), [page]);
   const PER_PAGE = 20;
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const toggleSection = useCallback((key: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const scanAbortRef = useRef<AbortController | null>(null);
@@ -3615,13 +3683,12 @@ export default function Dashboard() {
               return (
                 <div className="space-y-6">
                   {showSections && topStories.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 px-0.5">
-                        <span className="text-[11px] font-semibold text-primary uppercase tracking-widest flex-shrink-0">
-                          Top stories
-                        </span>
-                        <div className="flex-1 h-px bg-border/40" />
-                      </div>
+                    <CollapsibleSection
+                      label="Top stories"
+                      labelClassName="text-primary"
+                      collapsed={collapsedSections.has("top-stories")}
+                      onToggle={() => toggleSection("top-stories")}
+                    >
                       <TopStoryHero
                         group={topStories[0]}
                         trend={trends[topStories[0].topicKey]}
@@ -3635,55 +3702,72 @@ export default function Dashboard() {
                           onOpen={openPanel}
                         />
                       )}
-                    </div>
+                    </CollapsibleSection>
                   )}
 
                   {showSections && trendingOnly.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 px-0.5">
-                        <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-widest flex-shrink-0">
-                          Trending
-                        </span>
-                        <div className="flex-1 h-px bg-border/40" />
-                      </div>
+                    <CollapsibleSection
+                      label="Trending"
+                      labelClassName="text-amber-400"
+                      collapsed={collapsedSections.has("trending")}
+                      onToggle={() => toggleSection("trending")}
+                    >
                       <TopicCardGrid
                         groups={trendingOnly}
                         trends={trends}
                         isRead={(id) => read.has(id)}
                         onOpen={openPanel}
                       />
-                    </div>
+                    </CollapsibleSection>
                   )}
 
-                  {showSections && baseForPagination.length > 0 && (
-                    <div className="flex items-center gap-3 px-0.5 pt-2">
-                      <div className="flex-1 h-px bg-border/40" />
-                      <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-widest flex-shrink-0">
-                        Everything else
-                      </span>
-                      <div className="flex-1 h-px bg-border/40" />
-                    </div>
-                  )}
-
-                  {dateGroups.map((dateGroup, i) => (
-                    <div key={dateGroup.label || i} className="space-y-3">
-                      {/* Date section header — omitted when not sorting by recency */}
-                      {dateGroup.label && (
-                        <div className="flex items-center gap-3 px-0.5">
-                          <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-widest flex-shrink-0">
-                            {dateGroup.label}
-                          </span>
-                          <div className="flex-1 h-px bg-border/40" />
-                        </div>
+                  {showSections && baseForPagination.length > 0 ? (
+                    <CollapsibleSection
+                      label="Everything else"
+                      labelClassName="text-muted-foreground/50"
+                      dividerBefore
+                      collapsed={collapsedSections.has("everything-else")}
+                      onToggle={() => toggleSection("everything-else")}
+                    >
+                      {dateGroups.map((dateGroup, i) =>
+                        dateGroup.label ? (
+                          <CollapsibleSection
+                            key={dateGroup.label}
+                            label={dateGroup.label}
+                            labelClassName="text-muted-foreground/50"
+                            showDivider={false}
+                            collapsed={collapsedSections.has(`date:${dateGroup.label}`)}
+                            onToggle={() => toggleSection(`date:${dateGroup.label}`)}
+                          >
+                            <TopicCardGrid
+                              groups={dateGroup.groups}
+                              trends={trends}
+                              isRead={(id) => read.has(id)}
+                              onOpen={openPanel}
+                            />
+                          </CollapsibleSection>
+                        ) : (
+                          <TopicCardGrid
+                            key={i}
+                            groups={dateGroup.groups}
+                            trends={trends}
+                            isRead={(id) => read.has(id)}
+                            onOpen={openPanel}
+                          />
+                        ),
                       )}
+                    </CollapsibleSection>
+                  ) : (
+                    dateGroups.map((dateGroup, i) => (
                       <TopicCardGrid
+                        key={dateGroup.label || i}
                         groups={dateGroup.groups}
                         trends={trends}
                         isRead={(id) => read.has(id)}
                         onOpen={openPanel}
                       />
-                    </div>
-                  ))}
+                    ))
+                  )}
                   {/* Pagination */}
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-2 pt-2 pb-4">
