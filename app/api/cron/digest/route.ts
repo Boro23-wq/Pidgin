@@ -3,7 +3,7 @@ import { Resend } from "resend";
 import { clerkClient } from "@clerk/nextjs/server";
 import { fetchNewsletterEmails } from "@/lib/gmail";
 import { extractNewsletterStories } from "@/lib/claude";
-import { getValidTokens } from "@/lib/tokens";
+import { getValidTokens, GmailReconnectRequiredError } from "@/lib/tokens";
 import {
   saveSummary,
   isEmailProcessed,
@@ -38,7 +38,15 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean): Pro
   error?: string;
 }> {
   try {
-    const tokens = await getValidTokens(clerkUserId);
+    let tokens;
+    try {
+      tokens = await getValidTokens(clerkUserId);
+    } catch (err) {
+      if (err instanceof GmailReconnectRequiredError) {
+        return { synced: 0, sent: false, error: "gmail_reconnect_required" };
+      }
+      throw err;
+    }
     if (!tokens) return { synced: 0, sent: false, error: "no_tokens" };
 
     // Clear heavy raw content after 7 days (never re-read past extraction);

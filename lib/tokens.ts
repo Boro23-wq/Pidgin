@@ -7,6 +7,19 @@ export interface UserTokens {
   gmailAddress: string | null;
 }
 
+// Thrown (not returned null) when a user previously connected Gmail but the
+// stored refresh token no longer works — most commonly a Google OAuth app in
+// "Testing" publishing status, where refresh tokens expire after 7 days
+// regardless of activity. Distinct from "never connected" (no row at all,
+// which still just returns null) so callers can point the user at
+// reconnecting instead of a generic "not connected" dead end.
+export class GmailReconnectRequiredError extends Error {
+  constructor() {
+    super("Gmail refresh token is no longer valid — user must reconnect");
+    this.name = "GmailReconnectRequiredError";
+  }
+}
+
 export async function getValidTokens(clerkUserId: string): Promise<UserTokens | null> {
   const { data, error } = await supabase
     .from("user_tokens")
@@ -54,7 +67,7 @@ export async function getValidTokens(clerkUserId: string): Promise<UserTokens | 
       gmailAddress: data.gmail_address,
     };
   } catch {
-    return null;
+    throw new GmailReconnectRequiredError();
   }
 }
 

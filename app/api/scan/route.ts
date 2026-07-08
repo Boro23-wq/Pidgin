@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { getValidTokens } from "@/lib/tokens";
+import { getValidTokens, GmailReconnectRequiredError } from "@/lib/tokens";
 import { fetchNewsletterMetadata } from "@/lib/gmail";
 import {
   supabase,
@@ -54,9 +54,26 @@ export async function POST() {
     const { userId } = await auth();
     if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const tokens = await getValidTokens(userId);
+    let tokens;
+    try {
+      tokens = await getValidTokens(userId);
+    } catch (err) {
+      if (err instanceof GmailReconnectRequiredError) {
+        return Response.json(
+          {
+            error: "Your Gmail connection expired. Please reconnect to continue.",
+            code: "reconnect_required",
+          },
+          { status: 400 },
+        );
+      }
+      throw err;
+    }
     if (!tokens)
-      return Response.json({ error: "Gmail not connected" }, { status: 400 });
+      return Response.json(
+        { error: "Gmail not connected", code: "not_connected" },
+        { status: 400 },
+      );
 
     // Detect first sync by checking if any summaries exist for this user.
     const { count } = await supabase

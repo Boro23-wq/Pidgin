@@ -114,6 +114,7 @@ interface SyncProgress {
 
 type ScanResponse = {
   error?: string;
+  code?: string;
   newsletters?: EmailPreview[];
   isFirstSync?: boolean;
 };
@@ -454,6 +455,7 @@ function SyncOverlay({
   progress,
   stats,
   error,
+  errorCode,
   onDismiss,
   onCancel,
 }: {
@@ -462,6 +464,7 @@ function SyncOverlay({
   progress: SyncProgress | null;
   stats: SyncStats | null;
   error: string | null;
+  errorCode?: string | null;
   onDismiss: () => void;
   onCancel?: () => void;
 }) {
@@ -532,12 +535,24 @@ function SyncOverlay({
             <p className="text-xs text-muted-foreground leading-relaxed pl-[18px]">
               {error}
             </p>
-            <button
-              onClick={onDismiss}
-              className="pl-[18px] text-xs text-primary font-medium"
-            >
-              Dismiss
-            </button>
+            <div className="flex items-center gap-4 pl-[18px]">
+              {errorCode === "reconnect_required" && (
+                <button
+                  onClick={() => {
+                    window.location.href = "/api/auth/google";
+                  }}
+                  className="text-xs text-primary font-semibold"
+                >
+                  Reconnect Gmail
+                </button>
+              )}
+              <button
+                onClick={onDismiss}
+                className={`text-xs font-medium ${errorCode === "reconnect_required" ? "text-muted-foreground" : "text-primary"}`}
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         ) : stats ? (
           <motion.div
@@ -2265,6 +2280,7 @@ export default function Dashboard() {
   const [scanning, setScanning] = useState(false); // scan phase
   const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncErrorCode, setSyncErrorCode] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -2455,6 +2471,7 @@ export default function Dashboard() {
 
     setScanning(true);
     setSyncError(null);
+    setSyncErrorCode(null);
     setSyncStats(null);
 
     try {
@@ -2466,6 +2483,7 @@ export default function Dashboard() {
 
       if (!res.ok) {
         setSyncError(data?.error ?? `Scan failed with status ${res.status}`);
+        setSyncErrorCode(data?.code ?? null);
         return;
       }
 
@@ -2478,6 +2496,7 @@ export default function Dashboard() {
 
       if (data.error) {
         setSyncError(data.error);
+        setSyncErrorCode(data.code ?? null);
         return;
       }
 
@@ -2550,6 +2569,7 @@ export default function Dashboard() {
 
     setSyncing(true);
     setSyncError(null);
+    setSyncErrorCode(null);
     setSyncProgress(null);
 
     try {
@@ -2610,6 +2630,7 @@ export default function Dashboard() {
               }
             } else if (data.type === "error") {
               setSyncError(data.message);
+              setSyncErrorCode(data.code ?? null);
             }
           } catch {
             // skip malformed SSE line
@@ -3022,9 +3043,11 @@ export default function Dashboard() {
               progress={syncProgress}
               stats={syncStats}
               error={syncError}
+              errorCode={syncErrorCode}
               onDismiss={() => {
                 setSyncStats(null);
                 setSyncError(null);
+                setSyncErrorCode(null);
               }}
               onCancel={() => {
                 scanAbortRef.current?.abort();

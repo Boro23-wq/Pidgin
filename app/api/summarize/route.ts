@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { fetchNewsletterEmails, getEmailById } from "@/lib/gmail";
 import { extractNewsletterStories } from "@/lib/claude";
-import { getValidTokens } from "@/lib/tokens";
+import { getValidTokens, GmailReconnectRequiredError } from "@/lib/tokens";
 import {
   saveSummary,
   isEmailProcessed,
@@ -37,9 +37,27 @@ export async function POST(req: Request) {
           // no body
         }
 
-        const tokens = await getValidTokens(userId);
+        let tokens;
+        try {
+          tokens = await getValidTokens(userId);
+        } catch (err) {
+          if (err instanceof GmailReconnectRequiredError) {
+            send({
+              type: "error",
+              message: "Your Gmail connection expired. Please reconnect to continue.",
+              code: "reconnect_required",
+            });
+            controller.close();
+            return;
+          }
+          throw err;
+        }
         if (!tokens) {
-          send({ type: "error", message: "Gmail not connected. Please connect your Gmail account." });
+          send({
+            type: "error",
+            message: "Gmail not connected. Please connect your Gmail account.",
+            code: "not_connected",
+          });
           controller.close();
           return;
         }
