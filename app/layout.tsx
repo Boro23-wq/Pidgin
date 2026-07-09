@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/theme-provider";
-import { PostHogProvider, PostHogPageView, PostHogIdentify } from "@/components/posthog-provider";
+import {
+  PostHogProvider,
+  PostHogPageView,
+  PostHogIdentify,
+} from "@/components/posthog-provider";
 import { Suspense } from "react";
 import "./globals.css";
 
@@ -10,22 +14,25 @@ const APP_URL = "https://pidgin.site";
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "Pidgin — Here's what changed while you were building.",
+    default: "Pidgin",
     template: "%s — Pidgin",
   },
-  description: "A Founder Intelligence System: your newsletters turned into a ranked daily brief — what changed, why it matters, what to do about it.",
+  description:
+    "A Founder Intelligence System: your newsletters turned into a ranked daily brief of what changed, why it matters, what to do about it.",
   openGraph: {
     type: "website",
     url: APP_URL,
     siteName: "Pidgin",
-    title: "Pidgin — Here's what changed while you were building.",
-    description: "A Founder Intelligence System: your newsletters turned into a ranked daily brief — what changed, why it matters, what to do about it.",
+    title: "Pidgin",
+    description:
+      "A Founder Intelligence System: your newsletters turned into a ranked daily brief of what changed, why it matters, what to do about it.",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "Pidgin" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pidgin — Here's what changed while you were building.",
-    description: "A Founder Intelligence System: your newsletters turned into a ranked daily brief.",
+    title: "Pidgin",
+    description:
+      "A Founder Intelligence System: your newsletters turned into a ranked daily brief.",
     images: ["/og.png"],
   },
   icons: {
