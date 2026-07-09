@@ -35,7 +35,7 @@ import {
   MessageSquare,
   CheckCheck,
   TrendingUp,
-  Newspaper,
+  BookOpen,
 } from "lucide-react";
 
 function XIcon({ className }: { className?: string }) {
@@ -1564,7 +1564,7 @@ function TopicCard({
     >
       <div className="px-4 py-3.5 flex items-center gap-3">
         <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-          <Newspaper className="w-4 h-4 text-muted-foreground" />
+          <BookOpen className="w-4 h-4 text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold truncate">{group.headline}</p>
