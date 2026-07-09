@@ -1,5 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { topicScore, rankQualifyingTopics, EMAIL_SCORE_THRESHOLD, type TrendMap } from "./digest";
+
+// buildDigestHtml signs the feedback uid; oauth-state reads this at call time.
+process.env.OAUTH_STATE_SECRET = "test-secret-not-used-in-production";
+
+import {
+  topicScore,
+  rankQualifyingTopics,
+  buildDigestHtml,
+  escapeHtml,
+  safeUrl,
+  EMAIL_SCORE_THRESHOLD,
+  type TrendMap,
+} from "./digest";
 import type { Summary } from "./supabase";
 
 // Minimal, fully-populated fixture — only the fields that affect scoring
@@ -28,6 +40,7 @@ function makeSummary(overrides: Partial<Summary> = {}): Summary {
     significance: "notable",
     is_bookmarked: false,
     is_read: false,
+    is_public: false,
     ...overrides,
   };
 }
@@ -110,5 +123,95 @@ describe("rankQualifyingTopics", () => {
 
   it("EMAIL_SCORE_THRESHOLD is stricter than the dashboard's Top Stories bar (8), by design", () => {
     expect(EMAIL_SCORE_THRESHOLD).toBeGreaterThan(8);
+  });
+});
+
+describe("escapeHtml", () => {
+  it("neutralizes the characters that break out of text nodes and attributes", () => {
+    expect(escapeHtml(`<script>alert("x")</script>`)).toBe(
+      "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;"
+    );
+    expect(escapeHtml(`' onmouseover='evil()`)).toBe("&#39; onmouseover=&#39;evil()");
+  });
+
+  it("escapes ampersands first so entities aren't double-decoded", () => {
+    expect(escapeHtml("&lt;")).toBe("&amp;lt;");
+  });
+});
+
+describe("safeUrl", () => {
+  it("passes through ordinary http(s) URLs", () => {
+    expect(safeUrl("https://example.com/story")).toBe("https://example.com/story");
+    expect(safeUrl("http://example.com/")).toBe("http://example.com/");
+  });
+
+  it("rejects javascript: and data: URLs", () => {
+    expect(safeUrl("javascript:alert(1)")).toBe("");
+    expect(safeUrl("data:text/html,<script>alert(1)</script>")).toBe("");
+  });
+
+  it("rejects unparseable values and empty input", () => {
+    expect(safeUrl("not a url")).toBe("");
+    expect(safeUrl("")).toBe("");
+    expect(safeUrl(null)).toBe("");
+  });
+
+  it("escapes quotes so a URL cannot break out of the href attribute", () => {
+    expect(safeUrl(`https://example.com/?a="><a href=evil`)).not.toContain(`"`);
+  });
+});
+
+// A newsletter body is attacker-controlled: anyone can send a participant an
+// email that passes the List-Unsubscribe check, and its content reaches Claude,
+// which can be prompt-injected into emitting whatever it's told. The digest is
+// the only render path not escaped by React, so these fields must never land in
+// the HTML raw.
+describe("buildDigestHtml — injection via model output", () => {
+  const trends: TrendMap = new Map();
+
+  function render(overrides: Partial<Summary>): string {
+    const article = makeSummary({ significance: "major", ...overrides });
+    return buildDigestHtml([["topic-a", [article]]], "Ada", "user_1", trends);
+  }
+
+  it("escapes a title that tries to break out and inject an anchor", () => {
+    const html = render({ newsletter_title: `Big news"><a href="https://evil.test">click</a>` });
+    expect(html).not.toContain(`<a href="https://evil.test">`);
+    expect(html).toContain("&lt;a href=&quot;https://evil.test&quot;&gt;");
+  });
+
+  it("drops a javascript: sourceUrl rather than rendering it as an href", () => {
+    const html = render({ source_url: "javascript:alert(document.cookie)" });
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("Read original");
+  });
+
+  it("escapes summary, why_it_matters, what_to_do and key_points", () => {
+    const html = render({
+      summary: "<img src=x onerror=alert(1)>",
+      why_it_matters: "<b>bold</b>",
+      what_to_do: "<i>italic</i>",
+      key_points: ["<script>alert(1)</script>"],
+    });
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("<b>bold</b>");
+    expect(html).not.toContain("<i>italic</i>");
+    expect(html).not.toContain("<script>alert(1)</script>");
+  });
+
+  it("escapes the user's first name", () => {
+    const article = makeSummary({ significance: "major" });
+    const html = buildDigestHtml([["topic-a", [article]]], "<script>x</script>", "user_1", trends);
+    expect(html).not.toContain("<script>x</script>");
+  });
+
+  it("signs the feedback uid instead of emitting a bare base64 user id", () => {
+    const html = render({});
+    const bareBase64 = Buffer.from("user_1").toString("base64url");
+    expect(html).toContain("uid=");
+    // The signed form is `<payload>.<sig>` — the payload alone must not be the
+    // whole value, or anyone could forge feedback for an arbitrary user id.
+    expect(html).not.toContain(`uid=${bareBase64}"`);
+    expect(html).toContain(`uid=${bareBase64}.`);
   });
 });

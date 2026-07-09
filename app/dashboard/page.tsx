@@ -32,6 +32,7 @@ import {
   ThumbsDown,
   ThumbsUp,
   Share2,
+  Unplug,
   MessageSquare,
   CheckCheck,
   TrendingUp,
@@ -2345,6 +2346,7 @@ export default function Dashboard() {
   const [syncErrorCode, setSyncErrorCode] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showDigestOptIn, setShowDigestOptIn] = useState(false);
 
@@ -2895,6 +2897,9 @@ export default function Dashboard() {
     }
   };
 
+  // Summaries are private until shared — /share/[id] only serves rows with
+  // is_public set. Copy the link immediately (clipboard writes must happen in
+  // the click's user gesture, not after an await), then publish.
   const handleShare = useCallback(
     (id: string) => {
       const url = `${window.location.origin}/share/${id}`;
@@ -2902,9 +2907,37 @@ export default function Dashboard() {
       setCopying(`share-${id}`);
       setTimeout(() => setCopying(null), 2000);
       ph?.capture("article_shared");
+
+      fetch("/api/update-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_public: true }),
+      }).catch(() => {});
     },
     [ph],
   );
+
+  // Revokes the grant with Google server-side, not just locally — the point is
+  // that Pidgin actually loses inbox access, not that it stops asking.
+  const handleDisconnect = useCallback(async () => {
+    const confirmed = window.confirm(
+      "Disconnect Gmail?\n\nPidgin will immediately lose access to your inbox. " +
+        "Summaries already in your dashboard stay until you delete them.",
+    );
+    if (!confirmed) return;
+
+    setDisconnecting(true);
+    try {
+      const res = await fetch("/api/auth/google", { method: "DELETE" });
+      if (!res.ok) throw new Error("disconnect failed");
+      ph?.capture("gmail_disconnected");
+      setGmailConnected(false);
+    } catch {
+      window.alert("Could not disconnect Gmail. Please try again.");
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [ph]);
 
   const handleFlag = useCallback(
     (id: string) => {
@@ -3432,6 +3465,15 @@ export default function Dashboard() {
                     disabled={loading || syncing}
                   />
                 )}
+                <button
+                  onClick={handleDisconnect}
+                  disabled={disconnecting}
+                  title="Disconnect Gmail"
+                  className="h-9 px-3.5 rounded-full border border-border bg-secondary/40 text-sm font-medium text-muted-foreground flex items-center gap-1.5 transition-all hover:text-red-400 hover:border-red-500/40 disabled:opacity-50"
+                >
+                  <Unplug className="w-3.5 h-3.5" />
+                  {disconnecting ? "Disconnecting…" : "Disconnect"}
+                </button>
               </div>
             )}
           </motion.div>

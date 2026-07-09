@@ -14,6 +14,7 @@ import {
   setLastSyncedAt,
   type RecentTopic,
 } from "@/lib/supabase";
+import { isRateLimited } from "@/lib/rate-limit";
 
 const BATCH_SIZE = 3;
 
@@ -21,6 +22,16 @@ export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Each call fans out to Gmail and then to Claude once per email — by far the
+  // most expensive thing an authenticated user can trigger. 10 per hour is far
+  // above real usage (a manual sync a few times a day) and well below abuse.
+  if (isRateLimited(`summarize:${userId}`, 10, 60 * 60 * 1000)) {
+    return Response.json(
+      { error: "Too many syncs. Please wait a few minutes and try again." },
+      { status: 429 },
+    );
   }
 
   const encoder = new TextEncoder();

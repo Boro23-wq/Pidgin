@@ -61,13 +61,28 @@ export default function PrivacyPage() {
                 <span className="text-primary mt-0.5 flex-shrink-0">▸</span>
                 <span>
                   <strong className="text-foreground">Gmail access</strong> —
-                  read-only access to your inbox to identify and fetch
-                  newsletter emails, for the purposes of this study only. We
-                  never read personal emails, drafts, or sent mail but only
-                  newsletters. There&apos;s no manual sender allow-list: every
-                  newsletter we detect is scanned, and our ranking (not a
+                  read-only access to your inbox, for the purposes of this study
+                  only. Pidgin can never send, modify, or delete mail. To be
+                  precise about what read-only means: Google grants access to
+                  the whole mailbox, and Pidgin is built to request only
+                  newsletters from it — messages Gmail files under Promotions or
+                  Updates that carry the <code>List-Unsubscribe</code> header
+                  that bulk mail is required to set. Personal emails, drafts,
+                  and sent mail are never fetched, never sent to any AI model,
+                  and never stored. There&apos;s no manual sender allow-list:
+                  every newsletter we detect is scanned, and our ranking (not a
                   pre-approved sender list) decides what surfaces in your brief.
-                  You can block any sender at any time.
+                  You can block any sender at any time, and revoke Pidgin&apos;s
+                  access entirely from your{" "}
+                  <a
+                    href="https://myaccount.google.com/permissions"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-primary hover:text-primary/80 transition-colors"
+                  >
+                    Google account permissions
+                  </a>
+                  .
                 </span>
               </li>
               <li className="flex gap-2">
@@ -88,7 +103,9 @@ export default function PrivacyPage() {
                 <span>
                   <strong className="text-foreground">Newsletter body</strong> —
                   the original email content is only used to generate your brief
-                  and is cleared from our database after 7 days.
+                  and is cleared from our database after 7 days, including for
+                  stories you&apos;ve bookmarked. A bookmark keeps the summary,
+                  not the original email.
                 </span>
               </li>
               <li className="flex gap-2">
@@ -282,10 +299,62 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2 className="text-base font-semibold mb-3">How your data is secured</h2>
+            <ul className="space-y-2 text-foreground/75">
+              <li className="flex gap-2">
+                <span className="text-primary mt-0.5 flex-shrink-0">▸</span>
+                <span>
+                  Pidgin never sees your Google password. Access is granted
+                  through Google&apos;s standard OAuth consent screen, and the
+                  only permissions requested are read-only Gmail and your email
+                  address.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-primary mt-0.5 flex-shrink-0">▸</span>
+                <span>
+                  The resulting access tokens are encrypted at rest
+                  (AES-256-GCM) before being stored, so a database leak alone
+                  does not expose access to your inbox.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-primary mt-0.5 flex-shrink-0">▸</span>
+                <span>
+                  Every request is scoped to the signed-in account. Your
+                  newsletters, summaries, and history are never readable by
+                  another participant.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-primary mt-0.5 flex-shrink-0">▸</span>
+                <span>
+                  Data travels over TLS in transit, and shared summary links are
+                  opt-in — nothing is published unless you choose to share it.
+                </span>
+              </li>
+            </ul>
+          </section>
+
+          <section>
             <h2 className="text-base font-semibold mb-3">Your rights</h2>
+            <p className="text-foreground/75 mb-3">
+              You can disconnect Gmail at any time from your dashboard, which
+              immediately revokes Pidgin&apos;s access with Google and deletes
+              the stored tokens. You can also revoke access directly from your{" "}
+              <a
+                href="https://myaccount.google.com/permissions"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="text-primary hover:text-primary/80 transition-colors"
+              >
+                Google account permissions
+              </a>{" "}
+              — that works whether or not Pidgin is running.
+            </p>
             <p className="text-foreground/75">
-              You can withdraw from the study, disconnect Gmail, or request
-              deletion of all your data at any time by emailing{" "}
+              You can withdraw from the study or request deletion of all your
+              data at any time by emailing{" "}
               <a
                 href={`mailto:${CONTACT_EMAIL}`}
                 className="text-primary hover:text-primary/80 transition-colors"
