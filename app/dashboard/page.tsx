@@ -2518,6 +2518,7 @@ export default function Dashboard() {
       .then((r) => r.json())
       .then((d) => {
         setGmailConnected(d.connected);
+        if (d.lastSyncedAt) setLastSynced(new Date(d.lastSyncedAt + (d.lastSyncedAt.endsWith("Z") ? "" : "Z")));
       })
       .catch(() => setGmailConnected(false));
     fetch("/api/dismiss")

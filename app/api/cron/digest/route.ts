@@ -15,6 +15,7 @@ import {
   upsertTopicOccurrence,
   getTopicOccurrencesForKeys,
   getRecentTopics,
+  setLastSyncedAt,
   type RecentTopic,
 } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase";
@@ -217,6 +218,7 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean): Pro
     }
 
     await captureServerEvent(clerkUserId, "digest_sent", { article_count: qualifyingTopics.length, source: "cron" });
+    await setLastSyncedAt(clerkUserId);
 
     return { synced, sent: true };
   } catch (err) {

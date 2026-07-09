@@ -11,6 +11,7 @@ import {
   getBlockedDomains,
   upsertTopicOccurrence,
   getRecentTopics,
+  setLastSyncedAt,
   type RecentTopic,
 } from "@/lib/supabase";
 
@@ -187,6 +188,7 @@ export async function POST(req: Request) {
           }
         }
 
+        await setLastSyncedAt(userId);
         send({ type: "complete", processedCount, skippedCount, deletedCount });
       } catch (err) {
         if (isGmailReconnectRequiredError(err)) {

@@ -9,12 +9,13 @@ export async function GET() {
 
   const { data } = await supabase
     .from("user_tokens")
-    .select("gmail_address")
+    .select("gmail_address, last_synced_at")
     .eq("clerk_user_id", userId)
     .single();
 
   return Response.json({
     connected: !!data,
     gmailAddress: data?.gmail_address ?? null,
+    lastSyncedAt: data?.last_synced_at ?? null,
   });
 }

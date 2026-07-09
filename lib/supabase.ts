@@ -320,6 +320,22 @@ export async function getDismissedEmails(userId: string): Promise<Array<{
   return data ?? [];
 }
 
+export async function setLastSyncedAt(userId: string): Promise<void> {
+  await supabase
+    .from("user_tokens")
+    .update({ last_synced_at: new Date().toISOString() })
+    .eq("clerk_user_id", userId);
+}
+
+export async function getLastSyncedAt(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("user_tokens")
+    .select("last_synced_at")
+    .eq("clerk_user_id", userId)
+    .single();
+  return data?.last_synced_at ?? null;
+}
+
 export async function undismissEmail(emailId: string, userId: string): Promise<void> {
   await supabase
     .from("dismissed_emails")

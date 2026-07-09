@@ -1320,7 +1320,7 @@ function LandingPage() {
                 onClick={() => router.push(accessRoute)}
                 className="w-full h-10 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
-                {inviteOnly ? "Join the alpha ->" : "Get started ->"}
+                {inviteOnly ? "Join the alpha" : "Get started"}
               </motion.button>
               <p className="text-[10px] text-muted-foreground/35 text-center mt-3">
                 Free during alpha. 60 days notice before any paid tier goes
