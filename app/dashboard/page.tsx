@@ -35,7 +35,6 @@ import {
   MessageSquare,
   CheckCheck,
   TrendingUp,
-  BookOpen,
 } from "lucide-react";
 
 function XIcon({ className }: { className?: string }) {
@@ -1564,7 +1563,7 @@ function TopicCard({
     >
       <div className="px-4 py-3.5 flex items-center gap-3">
         <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-          <BookOpen className="w-4 h-4 text-muted-foreground" />
+          <Sparkles className="w-4 h-4 text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold truncate">{group.headline}</p>
@@ -2338,7 +2337,6 @@ export default function Dashboard() {
   const [trends, setTrends] = useState<Record<string, TopicTrend>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false); // importing via SSE
-  const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [scanning, setScanning] = useState(false); // scan phase
   const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -2757,7 +2755,6 @@ export default function Dashboard() {
     } finally {
       setSyncing(false);
       setSyncProgress(null);
-      setLastSynced(new Date());
     }
   };
 
@@ -3373,11 +3370,6 @@ export default function Dashboard() {
                     ? `All caught up · ${metrics.total} article${metrics.total !== 1 ? "s" : ""} in your digest`
                     : "Your inbox is empty — sync to get started."}
               </p>
-              {lastSynced && (
-                <p className="text-xs text-muted-foreground/40 mt-1">
-                  Last synced {lastSynced.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                </p>
-              )}
             </div>
             {gmailConnected === true && (
               <div className="flex items-center gap-2">
