@@ -9,9 +9,8 @@ Everything here is a statement about code that is in this repository. If you cha
 > 1. Run [`supabase/migrations/003_security.sql`](supabase/migrations/003_security.sql). Until it runs, `summaries` and `digest_feedback` are readable with the public `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the isolation claims below are false. *(Done — verified 2026-07-09.)*
 > 2. Run [`supabase/migrations/004_rate_limits.sql`](supabase/migrations/004_rate_limits.sql). Until it runs, rate limiting silently falls back to the weaker in-memory limiter.
 > 3. Set `TOKEN_ENCRYPTION_KEY` in the Vercel **Production** environment (`openssl rand -base64 32`). Deploying without it breaks every Gmail connection.
-> 4. Complete the token encryption rollout (below) before claiming encryption at rest.
 >
-> Do not point a participant at this document until all four are done.
+> Do not point a participant at this document until all three are done.
 
 ---
 
@@ -112,26 +111,22 @@ Order is deliberate: Gmail first, so a later failure can never leave a live gran
 ### Known gaps
 
 - **CSP allows `'unsafe-inline'` / `'unsafe-eval'` in `script-src`.** See above. Closing it needs nonce-based CSP with `strict-dynamic`.
-- **`decryptToken` accepts legacy plaintext tokens** unless `TOKENS_REQUIRE_ENCRYPTION=true`. This cannot be removed before the rollout below completes, or every pre-encryption user loses their Gmail connection on deploy.
 - **`gmail.readonly` requires OAuth verification and a CASA Tier 2 assessment.** See below. Not a code change.
 
-## Token encryption rollout
+## Token encryption
 
-Three steps, strictly in this order. Doing step 2 before step 1 breaks every existing user, because the previously-deployed code reads `refresh_token` raw and hands it to Google.
+There is no legacy plaintext path. `user_tokens` was purged on 2026-07-09 — before the encrypting code shipped, and while every row still belonged to the developer's own test accounts — so `decryptToken` treats an unencrypted value as a hard error rather than passing it through. Every stored token is written by `encryptToken` and prefixed `v1.`.
 
-1. Deploy the code that understands ciphertext. `TOKEN_ENCRYPTION_KEY` must already be set in the Vercel **Production** environment. New writes are encrypted; existing plaintext rows are still read.
-2. Run the backfill. Idempotent, safe to re-run:
-   ```
-   npx tsx scripts/backfill-token-encryption.ts --dry-run   # inspect
-   npx tsx scripts/backfill-token-encryption.ts             # apply
-   ```
-   Confirm zero remain:
-   ```sql
-   select count(*) filter (where refresh_token not like 'v1.%') as plaintext_rows from user_tokens;
-   ```
-3. Set `TOKENS_REQUIRE_ENCRYPTION=true`. A lingering plaintext token now raises instead of silently downgrading.
+Two consequences worth knowing:
 
-Rotating `TOKEN_ENCRYPTION_KEY` invalidates every stored token; all users would have to reconnect.
+- `TOKEN_ENCRYPTION_KEY` must be set in Vercel **Production** before deploying. Without it, no token can be read.
+- Rotating that key, or restoring a pre-2026-07-09 backup into `user_tokens`, strands every row. Users would have to reconnect Gmail.
+
+Verify no plaintext has crept in:
+
+```sql
+select count(*) filter (where refresh_token not like 'v1.%') as plaintext_rows from user_tokens;
+```
 
 ## Google OAuth verification (CASA)
 

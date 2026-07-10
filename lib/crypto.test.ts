@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import crypto from "crypto";
 
 let encryptToken: typeof import("./crypto").encryptToken;
@@ -37,35 +37,15 @@ describe("token encryption", () => {
     expect(() => decryptToken(tampered)).toThrow();
   });
 
-  // Rows written before encryption shipped are still plaintext. They must keep
-  // working until the backfill completes, or every existing user's Gmail
-  // connection breaks on deploy. Remove this behavior once no plaintext rows
-  // remain — see supabase/migrations/003_security.sql.
-  it("passes a legacy plaintext value through unchanged", () => {
-    expect(isEncrypted("ya29.legacy-plaintext-token")).toBe(false);
-    expect(decryptToken("ya29.legacy-plaintext-token")).toBe("ya29.legacy-plaintext-token");
+  // There is no plaintext passthrough. user_tokens was purged before the
+  // encrypting code shipped, so an unencrypted value can only mean something
+  // wrote to the table outside this module.
+  it("refuses a plaintext token rather than passing it through", () => {
+    expect(isEncrypted("ya29.some-plaintext-token")).toBe(false);
+    expect(() => decryptToken("ya29.some-plaintext-token")).toThrow(/not encrypted/i);
   });
 
   it("recognizes its own output as encrypted", () => {
     expect(isEncrypted(encryptToken("x"))).toBe(true);
-  });
-
-  // Step 3 of the rollout: once every row is backfilled, a plaintext token is
-  // a bug, not a legacy row, and must fail loudly.
-  describe("TOKENS_REQUIRE_ENCRYPTION=true", () => {
-    beforeAll(() => {
-      process.env.TOKENS_REQUIRE_ENCRYPTION = "true";
-    });
-    afterAll(() => {
-      delete process.env.TOKENS_REQUIRE_ENCRYPTION;
-    });
-
-    it("throws on a plaintext token rather than silently passing it through", () => {
-      expect(() => decryptToken("ya29.plaintext")).toThrow(/unencrypted token/i);
-    });
-
-    it("still decrypts properly encrypted tokens", () => {
-      expect(decryptToken(encryptToken("still-fine"))).toBe("still-fine");
-    });
   });
 });
