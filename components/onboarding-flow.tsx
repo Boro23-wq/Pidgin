@@ -2,7 +2,8 @@
 
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Inbox, Check, X, Sparkles, ArrowRight, RefreshCw } from "lucide-react";
+import { Inbox, Check, X, Sparkles, ArrowRight } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 interface OnboardingFlowProps {
   gmailConnected: boolean;
@@ -88,7 +89,7 @@ function StepConnect() {
         transition={{ delay: 0.15, duration: 0.35 }}
         className="text-2xl font-bold tracking-tight mb-2"
       >
-        Here's what changed while you were building
+        Here&apos;s what changed while you were building
       </motion.h2>
       <motion.p
         initial={{ opacity: 0 }}
@@ -131,7 +132,7 @@ function StepConnect() {
           className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground font-semibold text-sm shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-80 disabled:scale-100 disabled:cursor-not-allowed"
         >
           {connecting ? (
-            <><RefreshCw className="w-4 h-4 animate-spin" /> Connecting…</>
+            <><Spinner /> Connecting…</>
           ) : (
             <>Get my Morning Brief <ArrowRight className="w-4 h-4" /></>
           )}
@@ -188,7 +189,7 @@ function StepScan({ onStartScan, scanning }: { onStartScan: () => void; scanning
         transition={{ delay: 0.26, duration: 0.35 }}
         className="text-sm text-muted-foreground leading-relaxed mb-10"
       >
-        We'll scan today's inbox and show you what arrived.<br />
+        We&apos;ll scan today&apos;s inbox and show you what arrived.<br />
         You pick what to import — nothing happens automatically.
       </motion.p>
 
@@ -225,7 +226,7 @@ function StepScan({ onStartScan, scanning }: { onStartScan: () => void; scanning
           className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground font-semibold text-sm shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:scale-100 disabled:cursor-not-allowed"
         >
           {scanning ? (
-            <><RefreshCw className="w-4 h-4 animate-spin" /> Scanning…</>
+            <><Spinner /> Scanning…</>
           ) : (
             <>Scan inbox <ArrowRight className="w-4 h-4" /></>
           )}

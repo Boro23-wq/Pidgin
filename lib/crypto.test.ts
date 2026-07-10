@@ -37,13 +37,12 @@ describe("token encryption", () => {
     expect(() => decryptToken(tampered)).toThrow();
   });
 
-  // Rows written before encryption shipped are still plaintext. They must keep
-  // working until the backfill completes, or every existing user's Gmail
-  // connection breaks on deploy. Remove this behavior once no plaintext rows
-  // remain — see supabase/migrations/003_security.sql.
-  it("passes a legacy plaintext value through unchanged", () => {
-    expect(isEncrypted("ya29.legacy-plaintext-token")).toBe(false);
-    expect(decryptToken("ya29.legacy-plaintext-token")).toBe("ya29.legacy-plaintext-token");
+  // There is no plaintext passthrough. user_tokens was purged before the
+  // encrypting code shipped, so an unencrypted value can only mean something
+  // wrote to the table outside this module.
+  it("refuses a plaintext token rather than passing it through", () => {
+    expect(isEncrypted("ya29.some-plaintext-token")).toBe(false);
+    expect(() => decryptToken("ya29.some-plaintext-token")).toThrow(/not encrypted/i);
   });
 
   it("recognizes its own output as encrypted", () => {

@@ -48,7 +48,7 @@ export async function POST() {
 
     // Consumes Gmail API quota and a Claude classification pass per call.
     // Scanning is cheap enough to allow freely, but not unboundedly.
-    if (isRateLimited(`scan:${userId}`, 20, 60 * 60 * 1000)) {
+    if (await isRateLimited(`scan:${userId}`, 20, 60 * 60 * 1000)) {
       return Response.json(
         { error: "Too many scans. Please wait a few minutes and try again." },
         { status: 429 },

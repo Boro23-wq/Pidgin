@@ -59,7 +59,7 @@ export default function SignUpPage() {
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("focusout", onFocusOut, true);
     };
-  }, []);
+  }, [inviteOnly, router]);
 
   // Ticket-based sign-up (Clerk invite links) can establish a session
   // before <SignUp> itself ever mounts, since it's gated out below while

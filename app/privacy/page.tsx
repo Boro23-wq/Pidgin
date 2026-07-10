@@ -92,8 +92,8 @@ export default function PrivacyPage() {
                     Newsletter content
                   </strong>{" "}
                   — the body of newsletter emails is sent to Anthropic&apos;s
-                  Claude API to generate summaries, "why it matters" and "what
-                  to do" framing, significance ratings, and topic clustering (so
+                  Claude API to generate summaries, &ldquo;why it matters&rdquo; and &ldquo;what
+                  to do&rdquo; framing, significance ratings, and topic clustering (so
                   the same story from different newsletters doesn&apos;t show up
                   twice). Content is not stored by Anthropic for training.
                 </span>
@@ -132,7 +132,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold mb-3">
-              What we don't collect
+              What we don&apos;t collect
             </h2>
             <ul className="space-y-2 text-foreground/75">
               <li className="flex gap-2">
@@ -352,9 +352,15 @@ export default function PrivacyPage() {
               </a>{" "}
               — that works whether or not Pidgin is running.
             </p>
+            <p className="text-foreground/75 mb-3">
+              You can delete your account at any time from the account menu in
+              your dashboard. This revokes Gmail access with Google, erases
+              every summary and all topic history, and deletes your account —
+              immediately, and without needing to ask us.
+            </p>
             <p className="text-foreground/75">
-              You can withdraw from the study or request deletion of all your
-              data at any time by emailing{" "}
+              You can also withdraw from the study or ask questions about your
+              data by emailing{" "}
               <a
                 href={`mailto:${CONTACT_EMAIL}`}
                 className="text-primary hover:text-primary/80 transition-colors"
@@ -371,7 +377,7 @@ export default function PrivacyPage() {
             </h2>
             <p className="text-foreground/75">
               If we make material changes, we&apos;ll notify participants by
-              email before they take effect. The "last updated" date at the top
+              email before they take effect. The &ldquo;last updated&rdquo; date at the top
               of this page will always reflect the current version.
             </p>
           </section>

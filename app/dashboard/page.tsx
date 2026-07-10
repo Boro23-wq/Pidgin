@@ -19,7 +19,6 @@ import {
   ExternalLink,
   X,
   ChevronDown,
-  ChevronUp,
   ChevronRight,
   ChevronLeft,
   Mail,
@@ -27,7 +26,6 @@ import {
   Eye,
   EyeOff,
   SlidersHorizontal,
-  LayoutGrid,
   Inbox,
   ThumbsDown,
   ThumbsUp,
@@ -59,6 +57,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CustomUserButton } from "@/components/custom-user-button";
 import { OnboardingFlow } from "@/components/onboarding-flow";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Spinner } from "@/components/ui/spinner";
+import { apiPost } from "@/lib/api-fetch";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -436,11 +437,7 @@ function SyncButton({
       disabled={disabled || scanning}
       className="flex-shrink-0 h-9 px-4 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 text-sm font-medium transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      {scanning ? (
-        <span className="w-4 h-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin flex-shrink-0" />
-      ) : (
-        <ArrowDownToLine className="w-4 h-4 flex-shrink-0" />
-      )}
+      {scanning ? <Spinner /> : <ArrowDownToLine className="w-4 h-4 flex-shrink-0" />}
       <span>{scanning ? "Scanning…" : "Sync inbox"}</span>
     </button>
   );
@@ -762,113 +759,6 @@ function SyncOverlay({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Confirm dialog — replaces window.confirm for destructive actions, which is
-// unstyled, unthemed, and blocks the main thread. Follows SyncOverlay's
-// backdrop + spring-in card idiom.
-//
-// Escape and backdrop-click both cancel, since cancelling is the safe outcome.
-// ---------------------------------------------------------------------------
-function ConfirmDialog({
-  title,
-  body,
-  confirmLabel,
-  busyLabel,
-  icon,
-  onConfirm,
-  onCancel,
-  busy = false,
-  destructive = false,
-}: {
-  title: string;
-  body: React.ReactNode;
-  confirmLabel: string;
-  busyLabel?: string;
-  icon?: React.ReactNode;
-  onConfirm: () => void;
-  onCancel: () => void;
-  busy?: boolean;
-  destructive?: boolean;
-}) {
-  // Don't let Escape close mid-request: the action is already in flight, and
-  // dismissing would imply it was cancelled.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, busy]);
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
-    >
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={busy ? undefined : onCancel}
-      />
-      <motion.div
-        className="relative z-10 w-full max-w-[380px] rounded-2xl border border-border bg-card px-6 py-6 shadow-2xl shadow-black/20"
-        initial={{ scale: 0.96, opacity: 0, y: 8 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.96, opacity: 0, y: 4 }}
-        transition={{ type: "spring", damping: 28, stiffness: 380 }}
-      >
-        <div className="flex items-start gap-3">
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-              destructive
-                ? "bg-red-500/10 border border-red-500/20"
-                : "bg-primary/10 border border-primary/20"
-            }`}
-          >
-            <span className={destructive ? "text-red-400" : "text-primary"}>
-              {icon ?? <AlertTriangle className="w-4 h-4" />}
-            </span>
-          </div>
-          <div className="space-y-1.5 pt-0.5">
-            <p id="confirm-dialog-title" className="text-sm font-semibold">
-              {title}
-            </p>
-            <div className="text-xs text-muted-foreground leading-relaxed">{body}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 mt-6">
-          <button
-            onClick={onCancel}
-            disabled={busy}
-            className="h-9 px-4 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={busy}
-            autoFocus
-            className={`h-9 px-4 rounded-full text-xs font-semibold text-white flex items-center gap-1.5 transition-all disabled:opacity-60 ${
-              destructive
-                ? "bg-red-500 hover:bg-red-500/90"
-                : "bg-primary hover:bg-primary/90"
-            }`}
-          >
-            {busy && (
-              <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
-            )}
-            {busy ? (busyLabel ?? "Working…") : confirmLabel}
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Post-sync feedback toast
@@ -944,7 +834,7 @@ function FeedbackToast({ onDone }: { onDone: () => void }) {
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold leading-snug">
-              How's your digest looking?
+              How&apos;s your digest looking?
             </p>
             <button
               onClick={onDone}
@@ -1049,9 +939,7 @@ function ShareErrorToast({
             disabled={retrying}
             className="flex-1 h-9 rounded-xl bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all disabled:opacity-70 flex items-center justify-center gap-1.5"
           >
-            {retrying && (
-              <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
-            )}
+            {retrying && <Spinner className="w-3 h-3 border" />}
             {retrying ? "Publishing…" : "Try again"}
           </button>
           <button
@@ -1121,7 +1009,7 @@ function DigestOptInToast({
             You&apos;re subscribed!
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            We'll help you focus on what matters most — starting with tomorrow's
+            We&apos;ll help you focus on what matters most — starting with tomorrow&apos;s
             brief.
           </p>
         </div>
@@ -2523,7 +2411,7 @@ function NewsletterCard({
 // Dashboard page
 // ---------------------------------------------------------------------------
 export default function Dashboard() {
-  const { isLoaded, user } = useUser();
+  const { isLoaded } = useUser();
   const ph = usePostHog();
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -2586,11 +2474,15 @@ export default function Dashboard() {
             category: s?.category,
             source: s?.source_email,
           });
-          fetch("/api/update-summary", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id, is_read: true }),
-          }).catch(() => {});
+          // Marking-as-read on expand is low stakes; don't yank the user to
+          // /sign-in mid-scroll for it, just don't pretend it persisted.
+          void apiPost("/api/update-summary", { id, is_read: true }).then((res) => {
+            if (!res.ok) setRead((cur) => {
+              const back = new Set(cur);
+              back.delete(id);
+              return back;
+            });
+          });
         });
       }
     },
@@ -3008,19 +2900,47 @@ export default function Dashboard() {
 
   // ── Card actions ──────────────────────────────────────────────────────────
 
-  const handleToggleRead = useCallback((id: string) => {
-    setRead((prev) => {
-      const next = new Set(prev);
-      const nowRead = !next.has(id);
-      nowRead ? next.add(id) : next.delete(id);
-      fetch("/api/update-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, is_read: nowRead }),
-      }).catch(() => {});
-      return next;
-    });
-  }, []);
+  // Every bookmark/read toggle is optimistic. Previously they were also
+  // fire-and-forget (`.catch(() => {})`), so a rejected write left the UI
+  // asserting something the database never recorded — most commonly after the
+  // Clerk session expired, where the middleware answers with a redirect to
+  // /sign-in and fetch's followed 200 made the failure invisible. apiPost
+  // reports that case as `unauthenticated` rather than success.
+  const persistSummary = useCallback(
+    async (
+      id: string,
+      updates: Record<string, boolean>,
+      revert: () => void,
+    ): Promise<void> => {
+      const res = await apiPost("/api/update-summary", { id, ...updates });
+      if (res.ok) return;
+
+      revert();
+      // Nothing else on this page will work either — send them to re-auth
+      // rather than let them keep clicking into a dead session.
+      if (res.reason === "unauthenticated") window.location.href = "/sign-in";
+    },
+    [],
+  );
+
+  const handleToggleRead = useCallback(
+    (id: string) => {
+      setRead((prev) => {
+        const next = new Set(prev);
+        const nowRead = !next.has(id);
+        nowRead ? next.add(id) : next.delete(id);
+        void persistSummary(id, { is_read: nowRead }, () =>
+          setRead((cur) => {
+            const back = new Set(cur);
+            nowRead ? back.delete(id) : back.add(id);
+            return back;
+          }),
+        );
+        return next;
+      });
+    },
+    [persistSummary],
+  );
 
   const handleToggleBookmark = useCallback(
     (id: string) => {
@@ -3035,15 +2955,17 @@ export default function Dashboard() {
             category: s?.category,
           });
         }
-        fetch("/api/update-summary", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, is_bookmarked: newVal }),
-        }).catch(() => {});
+        void persistSummary(id, { is_bookmarked: newVal }, () =>
+          setBookmarked((cur) => {
+            const back = new Set(cur);
+            newVal ? back.delete(id) : back.add(id);
+            return back;
+          }),
+        );
         return next;
       });
     },
-    [summaries, ph],
+    [summaries, ph, persistSummary],
   );
 
   const handleGenerate = async (summaryId: string, platform: Platform) => {
@@ -3096,25 +3018,12 @@ export default function Dashboard() {
 
   // Flips is_public so /share/[id] will serve the row. Extracted so the
   // error toast's Retry can re-run exactly the request that failed.
-  //
-  // `res.ok` alone is not enough. When the Clerk session has expired the
-  // middleware answers with a 307 to /sign-in, fetch follows it, and the
-  // sign-in page returns 200 — so a request that never reached the route
-  // handler looks like a success. Reject redirects, and require the route's
-  // own {ok:true} rather than trusting a status code.
   const publishSummary = useCallback(async (id: string): Promise<boolean> => {
-    try {
-      const res = await fetch("/api/update-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, is_public: true }),
-      });
-      if (!res.ok || res.redirected) return false;
-      const data = await res.json().catch(() => null);
-      return data?.ok === true;
-    } catch {
-      return false;
-    }
+    const res = await apiPost<{ ok?: boolean }>("/api/update-summary", {
+      id,
+      is_public: true,
+    });
+    return res.ok && res.data?.ok === true;
   }, []);
 
   // Summaries are private until shared — /share/[id] only serves rows with
@@ -3629,7 +3538,7 @@ export default function Dashboard() {
                 >
                   {connectingGmail ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <Spinner />
                       Connecting…
                     </>
                   ) : (
@@ -3677,7 +3586,7 @@ export default function Dashboard() {
               >
                 {connectingGmail ? (
                   <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Connecting…
+                    <Spinner className="w-3.5 h-3.5 border" /> Connecting…
                   </>
                 ) : (
                   <>
@@ -3745,8 +3654,7 @@ export default function Dashboard() {
                     >
                       {digestState === "loading" ? (
                         <>
-                          <span className="w-3.5 h-3.5 rounded-full border border-current border-t-transparent animate-spin" />{" "}
-                          Sending…
+                          <Spinner className="w-3.5 h-3.5 border" /> Sending…
                         </>
                       ) : digestState === "sent" ? (
                         <>

@@ -56,13 +56,21 @@ export function isEncrypted(value: string): boolean {
   return value.startsWith(`${VERSION}.`) && value.split(".").length === 4;
 }
 
-// Plaintext passthrough is deliberate and temporary: rows written before this
-// shipped are still plaintext, and a user whose token silently fails to
-// decrypt is a user whose Gmail connection breaks. Once every row is
-// backfilled (see supabase/migrations/003_security.sql), delete the
-// passthrough so an unencrypted value becomes a hard error.
+// There is no plaintext passthrough, deliberately. Every stored token was
+// written by encryptToken above, so an unencrypted value here means something
+// wrote to user_tokens outside this module — a bug, or a tampered row. Failing
+// loudly beats silently handing a mystery string to Google.
+//
+// This is only safe because user_tokens was purged before the encrypting code
+// shipped; there are no legacy rows to be compatible with. Restoring a
+// pre-encryption backup into this table would strand it.
 export function decryptToken(value: string): string {
-  if (!isEncrypted(value)) return value;
+  if (!isEncrypted(value)) {
+    throw new Error(
+      "Refusing to use a token that is not encrypted. Every value in " +
+        "user_tokens must have been written by encryptToken()."
+    );
+  }
 
   const [, ivPart, tagPart, dataPart] = value.split(".");
   const decipher = crypto.createDecipheriv(

@@ -58,18 +58,17 @@ revoke all on blocked_senders   from anon, authenticated;
 alter table summaries add column if not exists is_public boolean not null default false;
 
 -- ---------------------------------------------------------------------------
--- 3. Backfill note — token encryption (lib/crypto.ts)
+-- 3. Note — token encryption (lib/crypto.ts)
 --
--- Tokens written before this release are plaintext. decryptToken() passes
--- unrecognized values through unchanged, so they keep working. Each user's row
--- re-encrypts on its own the next time getValidTokens() refreshes their access
--- token (within an hour of activity) or they reconnect Gmail.
+-- user_tokens was purged on 2026-07-09, before the encrypting code shipped, so
+-- there are no legacy plaintext rows and decryptToken() has no compatibility
+-- passthrough: an unencrypted value is a hard error. Every row is written by
+-- encryptToken() and prefixed 'v1.'.
 --
--- To confirm the backfill has completed, every row should be prefixed 'v1.':
+-- This must stay true. Restoring a pre-2026-07-09 backup into user_tokens
+-- would strand it — those rows are plaintext and nothing will read them.
+-- Verify with:
 --
 --   select count(*) filter (where refresh_token not like 'v1.%') as plaintext_rows
 --   from user_tokens;
---
--- Once that reads 0, drop the passthrough in decryptToken() so an unencrypted
--- value becomes a hard error rather than a silent downgrade.
 -- ---------------------------------------------------------------------------
