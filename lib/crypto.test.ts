@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import crypto from "crypto";
 
 let encryptToken: typeof import("./crypto").encryptToken;
@@ -48,5 +48,24 @@ describe("token encryption", () => {
 
   it("recognizes its own output as encrypted", () => {
     expect(isEncrypted(encryptToken("x"))).toBe(true);
+  });
+
+  // Step 3 of the rollout: once every row is backfilled, a plaintext token is
+  // a bug, not a legacy row, and must fail loudly.
+  describe("TOKENS_REQUIRE_ENCRYPTION=true", () => {
+    beforeAll(() => {
+      process.env.TOKENS_REQUIRE_ENCRYPTION = "true";
+    });
+    afterAll(() => {
+      delete process.env.TOKENS_REQUIRE_ENCRYPTION;
+    });
+
+    it("throws on a plaintext token rather than silently passing it through", () => {
+      expect(() => decryptToken("ya29.plaintext")).toThrow(/unencrypted token/i);
+    });
+
+    it("still decrypts properly encrypted tokens", () => {
+      expect(decryptToken(encryptToken("still-fine"))).toBe("still-fine");
+    });
   });
 });

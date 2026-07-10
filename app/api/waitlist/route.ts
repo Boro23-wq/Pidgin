@@ -76,7 +76,7 @@ export async function POST(req: Request) {
   // Unauthenticated and public: every call writes to Supabase *and* creates a
   // Clerk waitlist entry, so it's the one route an anonymous caller can use to
   // run up someone else's bill.
-  if (isRateLimited(`waitlist:${clientIp(req)}`, 5, 60 * 60 * 1000)) {
+  if (await isRateLimited(`waitlist:${clientIp(req)}`, 5, 60 * 60 * 1000)) {
     return NextResponse.json(
       { error: "Too many signups from this address. Please try again later." },
       { status: 429 },

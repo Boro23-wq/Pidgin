@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   // Each call fans out to Gmail and then to Claude once per email — by far the
   // most expensive thing an authenticated user can trigger. 10 per hour is far
   // above real usage (a manual sync a few times a day) and well below abuse.
-  if (isRateLimited(`summarize:${userId}`, 10, 60 * 60 * 1000)) {
+  if (await isRateLimited(`summarize:${userId}`, 10, 60 * 60 * 1000)) {
     return Response.json(
       { error: "Too many syncs. Please wait a few minutes and try again." },
       { status: 429 },

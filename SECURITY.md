@@ -4,12 +4,14 @@ This is the reference for what Pidgin does with participant Gmail data, and how 
 
 Everything here is a statement about code that is in this repository. If you change how data flows, change this file in the same commit.
 
-> **Deploy prerequisites — this document describes the intended state, and two steps are required before it is accurate:**
+> **Deploy prerequisites — this document describes the intended state. Before it is accurate:**
 >
-> 1. Run [`supabase/migrations/003_security.sql`](supabase/migrations/003_security.sql). Until it runs, the `summaries` and `digest_feedback` tables are readable with the public `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the isolation claims below are false.
-> 2. Set `TOKEN_ENCRYPTION_KEY` in the Vercel project (`openssl rand -base64 32`). Until it is set, the encryption-at-rest claim below is false, and deploying without it will break token reads.
+> 1. Run [`supabase/migrations/003_security.sql`](supabase/migrations/003_security.sql). Until it runs, `summaries` and `digest_feedback` are readable with the public `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the isolation claims below are false. *(Done — verified 2026-07-09.)*
+> 2. Run [`supabase/migrations/004_rate_limits.sql`](supabase/migrations/004_rate_limits.sql). Until it runs, rate limiting silently falls back to the weaker in-memory limiter.
+> 3. Set `TOKEN_ENCRYPTION_KEY` in the Vercel **Production** environment (`openssl rand -base64 32`). Deploying without it breaks every Gmail connection.
+> 4. Complete the token encryption rollout (below) before claiming encryption at rest.
 >
-> Do not point a participant at this document until both are done.
+> Do not point a participant at this document until all four are done.
 
 ---
 
@@ -81,20 +83,66 @@ Two endpoints are reachable without a session, by necessity:
 
 ### Rate limiting
 
-`/api/scan`, `/api/summarize`, and OAuth initiation are limited per user; `/api/waitlist` is limited per IP because it is public and each call writes to both Supabase and Clerk. The limiter ([`lib/rate-limit.ts`](lib/rate-limit.ts)) is in-memory and resets on serverless cold start — adequate for an invite-only alpha, and the first thing to replace with a durable store before opening signups.
+`/api/scan`, `/api/summarize`, and OAuth initiation are limited per user; `/api/waitlist` is limited per IP because it is public and each call writes to both Supabase and Clerk.
+
+The counter lives in Postgres ([`lib/rate-limit.ts`](lib/rate-limit.ts), [`supabase/migrations/004_rate_limits.sql`](supabase/migrations/004_rate_limits.sql)), not in process memory. Vercel runs many concurrent serverless instances and recycles them constantly, so an in-memory `Map` both resets on cold start and is invisible to sibling instances. The SQL function takes a per-key advisory lock before counting, so a burst of parallel requests cannot all read "under the limit" and slip through together.
+
+It fails *open* — to a per-instance in-memory limiter — when Postgres is unreachable or migration 004 hasn't been applied. A rate limiter that takes the app down during a database hiccup is a worse outage than the abuse it prevents.
 
 ### Transport & headers
 
-HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin` are set in [`next.config.js`](next.config.js). The referrer policy matters specifically because `/share/[id]` URLs are capability tokens: a full referrer on an outbound click would leak the URL to the destination site.
+Set in [`next.config.js`](next.config.js): a Content-Security-Policy, HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, and `X-Permitted-Cross-Domain-Policies: none`.
 
-There is no Content-Security-Policy yet. That's the main remaining gap in this section.
+The referrer policy matters specifically because `/share/[id]` URLs are capability tokens: a full referrer on an outbound click would leak the URL to the destination site.
+
+The CSP blocks script from any origin outside a short allowlist (Clerk, PostHog, Cloudflare Turnstile), blocks framing entirely, and locks down `base-uri`, `form-action` and `object-src`. It **does** permit `'unsafe-inline'` and `'unsafe-eval'` in `script-src`, so it is not a defense against inline script injection — Next inlines its hydration bootstrap, and both Clerk and PostHog eval at runtime. Removing those requires a per-request nonce plus `strict-dynamic`, which is a real project. The mitigation in the meantime is that no user-controlled HTML is rendered unescaped anywhere.
+
+### Client-side request handling
+
+Every dashboard call to this app's own API goes through [`lib/api-fetch.ts`](lib/api-fetch.ts) rather than raw `fetch`.
+
+The reason is specific. When a Clerk session expires, the middleware answers an API request with a 307 to `/sign-in`; `fetch` follows redirects transparently, and the sign-in page returns 200. So `res.ok` is `true` for a request that never reached the route handler. Optimistic writes — bookmark, mark-as-read, publish-a-share-link — appeared to succeed, silently lost the write, and reverted on next reload. `apiFetch` inspects `res.redirected` and returns an explicit `unauthenticated` result. Covered by [`lib/api-fetch.test.ts`](lib/api-fetch.test.ts).
+
+### Account deletion
+
+`DELETE /api/account` ([`app/api/account/route.ts`](app/api/account/route.ts)), reachable from the account menu behind a type-`DELETE`-to-confirm dialog. It revokes the Gmail grant with Google, erases every row keyed to the user across all seven tables plus their waitlist entry, then deletes the Clerk account.
+
+Order is deliberate: Gmail first, so a later failure can never leave a live grant on an account the user believes is gone; Clerk last, because its user id is the key every other query needs.
 
 ### Known gaps
 
-- No CSP.
-- Rate limiting is per-instance and in-memory.
-- `lib/crypto.ts` still passes legacy plaintext tokens through on read, so the pre-encryption rows keep working. Remove that fallback once the backfill query in `003_security.sql` reports zero plaintext rows.
-- `gmail.readonly` requires a CASA Tier 2 assessment before the OAuth app can leave Testing status.
+- **CSP allows `'unsafe-inline'` / `'unsafe-eval'` in `script-src`.** See above. Closing it needs nonce-based CSP with `strict-dynamic`.
+- **`decryptToken` accepts legacy plaintext tokens** unless `TOKENS_REQUIRE_ENCRYPTION=true`. This cannot be removed before the rollout below completes, or every pre-encryption user loses their Gmail connection on deploy.
+- **`gmail.readonly` requires OAuth verification and a CASA Tier 2 assessment.** See below. Not a code change.
+
+## Token encryption rollout
+
+Three steps, strictly in this order. Doing step 2 before step 1 breaks every existing user, because the previously-deployed code reads `refresh_token` raw and hands it to Google.
+
+1. Deploy the code that understands ciphertext. `TOKEN_ENCRYPTION_KEY` must already be set in the Vercel **Production** environment. New writes are encrypted; existing plaintext rows are still read.
+2. Run the backfill. Idempotent, safe to re-run:
+   ```
+   npx tsx scripts/backfill-token-encryption.ts --dry-run   # inspect
+   npx tsx scripts/backfill-token-encryption.ts             # apply
+   ```
+   Confirm zero remain:
+   ```sql
+   select count(*) filter (where refresh_token not like 'v1.%') as plaintext_rows from user_tokens;
+   ```
+3. Set `TOKENS_REQUIRE_ENCRYPTION=true`. A lingering plaintext token now raises instead of silently downgrading.
+
+Rotating `TOKEN_ENCRYPTION_KEY` invalidates every stored token; all users would have to reconnect.
+
+## Google OAuth verification (CASA)
+
+`gmail.readonly` is a Google **restricted scope**. While the OAuth app is in *Testing* status it works for a handful of listed test users and refresh tokens expire after 7 days. Moving to *In production* — required before opening signups — means:
+
+1. **OAuth consent screen** — verified domain ownership, a homepage explaining the app, and a publicly linked privacy policy that discloses the Google data accessed. [`app/privacy/page.tsx`](app/privacy/page.tsx) covers the disclosure.
+2. **Scope justification + demo video** — showing the consent screen, what the app does with Gmail data, and why a narrower scope (e.g. `gmail.metadata`) does not suffice. It genuinely doesn't here: the summaries need message bodies.
+3. **CASA Tier 2 assessment** — an independent security review by a Google-authorized lab, against the OWASP ASVS. Paid, and typically several weeks. It re-verifies annually.
+4. **App must not be a prototype** — Google rejects apps that look like tests. A working landing page, functioning deletion flow, and honest privacy copy all matter here.
+
+Items 1, 2 and 4 are ready. Item 3 is an external audit that has to be scheduled and paid for; nothing in this repository can substitute for it. The engineering work most likely to come out of it — encrypted secrets at rest, deny-by-default database access, self-service deletion, no debug endpoints — is done.
 
 ## Reporting a vulnerability
 

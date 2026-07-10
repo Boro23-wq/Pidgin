@@ -56,13 +56,27 @@ export function isEncrypted(value: string): boolean {
   return value.startsWith(`${VERSION}.`) && value.split(".").length === 4;
 }
 
-// Plaintext passthrough is deliberate and temporary: rows written before this
-// shipped are still plaintext, and a user whose token silently fails to
-// decrypt is a user whose Gmail connection breaks. Once every row is
-// backfilled (see supabase/migrations/003_security.sql), delete the
-// passthrough so an unencrypted value becomes a hard error.
+// Rows written before encryption shipped are still plaintext, and a user whose
+// token fails to decrypt is a user whose Gmail connection breaks. So plaintext
+// is accepted on read — but only while TOKENS_REQUIRE_ENCRYPTION is unset.
+//
+// The rollout is necessarily three steps, in this order:
+//   1. Deploy this code (writes ciphertext, still reads plaintext).
+//   2. Run `npx tsx scripts/backfill-token-encryption.ts` to encrypt existing
+//      rows. Doing this BEFORE step 1 is deployed would break every user,
+//      because the old code reads refresh_token raw and hands it to Google.
+//   3. Set TOKENS_REQUIRE_ENCRYPTION=true, which turns a lingering plaintext
+//      token into a loud error instead of a silent downgrade.
 export function decryptToken(value: string): string {
-  if (!isEncrypted(value)) return value;
+  if (!isEncrypted(value)) {
+    if (process.env.TOKENS_REQUIRE_ENCRYPTION === "true") {
+      throw new Error(
+        "Refusing to use an unencrypted token while TOKENS_REQUIRE_ENCRYPTION=true. " +
+          "Run scripts/backfill-token-encryption.ts, or unset the flag."
+      );
+    }
+    return value;
+  }
 
   const [, ivPart, tagPart, dataPart] = value.split(".");
   const decipher = crypto.createDecipheriv(

@@ -1,6 +1,17 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { getPublicSummary } from "@/lib/supabase";
 import type { Metadata } from "next";
+
+// generateMetadata and the page both need the row; cache() collapses them into
+// one query per request.
+const getSummary = cache(getPublicSummary);
+
+// Do NOT add a loading.tsx to this route (or any ancestor of it). A Suspense
+// boundary makes Next stream the response, which commits a 200 status before
+// the page body runs — so notFound() below renders the 404 page with a 200.
+// A private summary would then look "found" to anything reading status codes.
+// This is why app/loading.tsx was moved down into the segments that need it.
 
 const CAT_STYLE: Record<string, string> = {
   "AI & ML": "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/35 dark:border-indigo-500/25",
@@ -20,8 +31,12 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const s = await getPublicSummary(id);
-  if (!s) return { title: "Pidgin" };
+  const s = await getSummary(id);
+  // notFound() here rather than only in the page body. The root app/loading.tsx
+  // introduces a Suspense boundary, so by the time the page component runs the
+  // response has already begun streaming with a committed 200 status and the
+  // 404 can no longer be set. generateMetadata runs before the stream opens.
+  if (!s) notFound();
   return {
     title: s.newsletter_title,
     description: s.summary?.substring(0, 160) ?? "",
@@ -45,7 +60,7 @@ export default async function SharePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const s = await getPublicSummary(id);
+  const s = await getSummary(id);
   if (!s) notFound();
 
   const senderName =

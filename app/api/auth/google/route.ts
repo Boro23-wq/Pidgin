@@ -10,7 +10,7 @@ export async function GET() {
     return Response.redirect(new URL("/sign-in", process.env.NEXT_PUBLIC_APP_URL!));
   }
 
-  if (isRateLimited(`oauth-init:${userId}`, 5, 5 * 60 * 1000)) {
+  if (await isRateLimited(`oauth-init:${userId}`, 5, 5 * 60 * 1000)) {
     return Response.redirect(
       new URL("/?error=rate_limited", process.env.NEXT_PUBLIC_APP_URL!)
     );
