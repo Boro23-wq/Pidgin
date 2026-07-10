@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { supabase } from "./supabase";
+import { encryptToken, decryptToken } from "./crypto";
 
 export interface UserTokens {
   accessToken: string;
@@ -62,14 +63,16 @@ export async function getValidTokens(clerkUserId: string): Promise<UserTokens | 
 
   if (error || !data) return null;
 
+  const refreshToken = decryptToken(data.refresh_token);
+
   const expiry = new Date(data.token_expiry);
   const fiveMinutes = 5 * 60 * 1000;
   const needsRefresh = expiry.getTime() - Date.now() < fiveMinutes;
 
   if (!needsRefresh) {
     return {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
+      accessToken: decryptToken(data.access_token),
+      refreshToken,
       gmailAddress: data.gmail_address,
     };
   }
@@ -80,7 +83,7 @@ export async function getValidTokens(clerkUserId: string): Promise<UserTokens | 
     process.env.GOOGLE_CLIENT_SECRET,
     `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`
   );
-  oauth2Client.setCredentials({ refresh_token: data.refresh_token });
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   try {
     const { credentials } = await oauth2Client.refreshAccessToken();
@@ -89,14 +92,14 @@ export async function getValidTokens(clerkUserId: string): Promise<UserTokens | 
     await supabase
       .from("user_tokens")
       .update({
-        access_token: credentials.access_token,
+        access_token: encryptToken(credentials.access_token!),
         token_expiry: newExpiry.toISOString(),
       })
       .eq("clerk_user_id", clerkUserId);
 
     return {
       accessToken: credentials.access_token!,
-      refreshToken: data.refresh_token,
+      refreshToken,
       gmailAddress: data.gmail_address,
     };
   } catch {
@@ -114,11 +117,39 @@ export async function saveUserTokens(
   await supabase.from("user_tokens").upsert(
     {
       clerk_user_id: clerkUserId,
-      access_token: accessToken,
-      refresh_token: refreshToken,
+      access_token: encryptToken(accessToken),
+      refresh_token: encryptToken(refreshToken),
       token_expiry: expiryDate.toISOString(),
       gmail_address: gmailAddress,
     },
     { onConflict: "clerk_user_id" }
   );
+}
+
+// Revokes the grant with Google, then drops the row. Order matters: if the
+// delete ran first and revocation then failed, we'd have lost the only copy
+// of the token and Google would keep the grant alive forever. Revocation is
+// best-effort — a token Google already considers dead 400s here, which is
+// success for our purposes.
+export async function revokeUserTokens(clerkUserId: string): Promise<void> {
+  const { data } = await supabase
+    .from("user_tokens")
+    .select("refresh_token")
+    .eq("clerk_user_id", clerkUserId)
+    .single();
+
+  if (data?.refresh_token) {
+    try {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`
+      );
+      await oauth2Client.revokeToken(decryptToken(data.refresh_token));
+    } catch (err) {
+      console.error(`[tokens] revoke failed for ${clerkUserId}:`, err);
+    }
+  }
+
+  await supabase.from("user_tokens").delete().eq("clerk_user_id", clerkUserId);
 }

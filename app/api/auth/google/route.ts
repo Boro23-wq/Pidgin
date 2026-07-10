@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { google } from "googleapis";
 import { createOAuthState } from "@/lib/oauth-state";
+import { revokeUserTokens } from "@/lib/tokens";
 import { isRateLimited } from "@/lib/rate-limit";
 
 export async function GET() {
@@ -32,4 +33,24 @@ export async function GET() {
   });
 
   return Response.redirect(url);
+}
+
+// Disconnect Gmail: revokes the grant with Google, then drops the stored
+// tokens. Previously the only way to do this was to email the founder and
+// wait, or to find the revoke screen buried in Google account settings —
+// neither of which is a real control for the person whose inbox it is.
+//
+// Scoped to disconnection, not erasure: summaries the user has already
+// generated are theirs and stay until they delete them or retention expires.
+export async function DELETE() {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    await revokeUserTokens(userId);
+    return Response.json({ ok: true });
+  } catch (err) {
+    console.error("[auth/google] disconnect failed:", err);
+    return Response.json({ error: "Could not disconnect Gmail" }, { status: 500 });
+  }
 }

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { clerkClient } from "@clerk/nextjs/server";
@@ -227,10 +228,21 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean): Pro
   }
 }
 
+// Constant-time compare, hashed first so differing lengths don't throw and
+// don't leak length through timing. Fails closed when CRON_SECRET is unset —
+// otherwise the expected value interpolates to the literal "Bearer undefined",
+// which an attacker can simply send.
+function isAuthorizedCron(authHeader: string | null): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || !authHeader) return false;
+  const a = crypto.createHash("sha256").update(authHeader).digest();
+  const b = crypto.createHash("sha256").update(`Bearer ${secret}`).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 export async function GET(req: Request) {
   // Verify Vercel cron secret
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCron(req.headers.get("authorization"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

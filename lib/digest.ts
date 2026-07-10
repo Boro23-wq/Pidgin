@@ -1,7 +1,34 @@
 import type { Summary } from "@/lib/supabase";
+import { createSignedUid } from "@/lib/oauth-state";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pidgin.site";
 const BRAND = "#0da2e7";
+
+// Every field below originates in an email body someone else wrote, passed
+// through Claude — which can be prompt-injected by that body. This is the one
+// render path that isn't React-escaped, so nothing reaches the HTML unescaped.
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Returns "" for anything that isn't a plain http(s) URL, so callers can
+// `url ? renderLink() : ""`. Blocks `javascript:` and `data:` hrefs, and the
+// escape on the way out blocks breaking out of the href attribute entirely.
+export function safeUrl(value: string | null | undefined): string {
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return escapeHtml(parsed.toString());
+  } catch {
+    return "";
+  }
+}
 
 export type TrendMap = Map<string, { weeksSeenCount: number; occurrencesCount: number; lastTitle: string | null }>;
 
@@ -80,6 +107,9 @@ export function buildDigestHtml(
   const dateStr = formatDate(new Date());
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  // HMAC-signed, not bare base64 — this link is clicked from an inbox with no
+  // session, so the uid is the only thing asserting whose feedback it is.
+  const signedUid = createSignedUid(userId);
 
   // The single highest-scoring story gets hero treatment above the rest of
   // the list, mirroring the dashboard's "Top stories" hero card — one clear
@@ -91,6 +121,7 @@ export function buildDigestHtml(
         const [topicKey, items] = heroTopic;
         const article = primaryArticle(items);
         const trend = trends.get(topicKey);
+        const heroUrl = safeUrl(article.source_url);
         return `
     <div style="margin-bottom:40px;padding:28px 24px;background-color:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;">
       <table cellpadding="0" cellspacing="0" style="margin-bottom:14px;">
@@ -106,9 +137,9 @@ export function buildDigestHtml(
           ${trend && trend.weeksSeenCount >= 2 ? `<td style="padding-bottom:6px;">${trendBadgeHtml(trend)}</td>` : ""}
         </tr>
       </table>
-      <p style="font-size:19px;font-weight:800;color:#111827;margin:0 0 10px;line-height:1.3;">${article.newsletter_title}</p>
-      ${article.why_it_matters ? `<p style="font-size:14px;color:#374151;margin:0;line-height:1.7;"><strong style="color:#111827;">Why it matters:</strong> ${article.why_it_matters}</p>` : ""}
-      ${article.source_url ? `<p style="margin:14px 0 0;"><a href="${article.source_url}" style="font-size:12px;color:${BRAND};text-decoration:none;font-weight:700;">Read original →</a></p>` : ""}
+      <p style="font-size:19px;font-weight:800;color:#111827;margin:0 0 10px;line-height:1.3;">${escapeHtml(article.newsletter_title)}</p>
+      ${article.why_it_matters ? `<p style="font-size:14px;color:#374151;margin:0;line-height:1.7;"><strong style="color:#111827;">Why it matters:</strong> ${escapeHtml(article.why_it_matters)}</p>` : ""}
+      ${heroUrl ? `<p style="margin:14px 0 0;"><a href="${heroUrl}" style="font-size:12px;color:${BRAND};text-decoration:none;font-weight:700;">Read original →</a></p>` : ""}
     </div>`;
       })()
     : "";
@@ -124,17 +155,18 @@ export function buildDigestHtml(
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
         <tr>
           <td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#9ca3af;padding-bottom:10px;border-bottom:1px solid #e5e7eb;">
-            ${headline}${trendBadge}
+            ${escapeHtml(headline)}${trendBadge}
           </td>
         </tr>
       </table>
       ${cappedItems
         .map((a, i) => {
           const keyPoints = (Array.isArray(a.key_points) ? (a.key_points as string[]) : []).slice(0, 3);
+          const articleUrl = safeUrl(a.source_url);
           return `
         <div style="${i > 0 ? "margin-top:32px;padding-top:32px;border-top:1px solid #f3f4f6;" : ""}">
-          <p style="font-size:16px;font-weight:700;color:#111827;margin:0 0 10px;line-height:1.35;">${a.newsletter_title}</p>
-          ${a.summary ? `<p style="font-size:14px;color:#374151;margin:0 0 14px;line-height:1.75;">${a.summary}</p>` : ""}
+          <p style="font-size:16px;font-weight:700;color:#111827;margin:0 0 10px;line-height:1.35;">${escapeHtml(a.newsletter_title)}</p>
+          ${a.summary ? `<p style="font-size:14px;color:#374151;margin:0 0 14px;line-height:1.75;">${escapeHtml(a.summary)}</p>` : ""}
           ${
             keyPoints.length > 0
               ? `<table cellpadding="0" cellspacing="0" style="margin:0 0 12px;">
@@ -145,16 +177,16 @@ export function buildDigestHtml(
                 <td style="vertical-align:top;padding-right:8px;padding-bottom:6px;">
                   <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background-color:${BRAND};margin-top:7px;"></span>
                 </td>
-                <td style="font-size:13px;color:#4b5563;line-height:1.6;padding-bottom:6px;">${pt}</td>
+                <td style="font-size:13px;color:#4b5563;line-height:1.6;padding-bottom:6px;">${escapeHtml(pt)}</td>
               </tr>`
                 )
                 .join("")}
             </table>`
               : ""
           }
-          ${a.why_it_matters ? `<p style="font-size:13px;color:#374151;margin:0 0 6px;line-height:1.6;"><strong style="color:#111827;">Why it matters:</strong> ${a.why_it_matters}</p>` : ""}
-          ${a.what_to_do ? `<p style="font-size:13px;color:#374151;margin:0 0 10px;line-height:1.6;"><strong style="color:#111827;">What to do:</strong> ${a.what_to_do}</p>` : ""}
-          ${a.source_url ? `<p style="margin:10px 0 0;"><a href="${a.source_url}" style="font-size:12px;color:${BRAND};text-decoration:none;font-weight:600;">Read original →</a></p>` : ""}
+          ${a.why_it_matters ? `<p style="font-size:13px;color:#374151;margin:0 0 6px;line-height:1.6;"><strong style="color:#111827;">Why it matters:</strong> ${escapeHtml(a.why_it_matters)}</p>` : ""}
+          ${a.what_to_do ? `<p style="font-size:13px;color:#374151;margin:0 0 10px;line-height:1.6;"><strong style="color:#111827;">What to do:</strong> ${escapeHtml(a.what_to_do)}</p>` : ""}
+          ${articleUrl ? `<p style="margin:10px 0 0;"><a href="${articleUrl}" style="font-size:12px;color:${BRAND};text-decoration:none;font-weight:600;">Read original →</a></p>` : ""}
         </div>`;
         })
         .join("")}
@@ -193,7 +225,7 @@ export function buildDigestHtml(
         </tr>
       </table>
       <p style="font-size:15px;color:#6b7280;margin:0 0 36px;line-height:1.6;">
-        ${greeting}${userFirstName ? ", " + userFirstName : ""} — here's what changed while you were building yesterday.
+        ${greeting}${userFirstName ? ", " + escapeHtml(userFirstName) : ""} — here's what changed while you were building yesterday.
       </p>
       ${heroHtml}
       ${sourcesHtml}
@@ -208,13 +240,13 @@ export function buildDigestHtml(
         <table cellpadding="0" cellspacing="0">
           <tr>
             <td style="padding-right:8px;">
-              <a href="${APP_URL}/api/feedback/digest?rating=up&uid=${Buffer.from(userId).toString("base64url")}"
+              <a href="${APP_URL}/api/feedback/digest?rating=up&uid=${signedUid}"
                  style="display:inline-block;padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;font-weight:600;color:#374151;text-decoration:none;">
                 Loved it
               </a>
             </td>
             <td>
-              <a href="${APP_URL}/api/feedback/digest?rating=down&uid=${Buffer.from(userId).toString("base64url")}"
+              <a href="${APP_URL}/api/feedback/digest?rating=down&uid=${signedUid}"
                  style="display:inline-block;padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;font-weight:600;color:#374151;text-decoration:none;">
                 Needs work
               </a>

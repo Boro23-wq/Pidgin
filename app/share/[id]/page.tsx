@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { getPublicSummary } from "@/lib/supabase";
 import type { Metadata } from "next";
 
 const CAT_STYLE: Record<string, string> = {
@@ -14,22 +14,13 @@ const CAT_STYLE: Record<string, string> = {
   Other: "bg-zinc-500/15 text-zinc-500 dark:text-zinc-400 border-zinc-500/35 dark:border-zinc-500/25",
 };
 
-async function getSummary(id: string) {
-  const { data } = await supabase
-    .from("summaries")
-    .select("*")
-    .eq("id", id)
-    .single();
-  return data;
-}
-
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const s = await getSummary(id);
+  const s = await getPublicSummary(id);
   if (!s) return { title: "Pidgin" };
   return {
     title: s.newsletter_title,
@@ -54,7 +45,7 @@ export default async function SharePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const s = await getSummary(id);
+  const s = await getPublicSummary(id);
   if (!s) notFound();
 
   const senderName =

@@ -32,6 +32,8 @@ import {
   ThumbsDown,
   ThumbsUp,
   Share2,
+  Unplug,
+  AlertTriangle,
   MessageSquare,
   CheckCheck,
   TrendingUp,
@@ -761,6 +763,114 @@ function SyncOverlay({
 }
 
 // ---------------------------------------------------------------------------
+// Confirm dialog — replaces window.confirm for destructive actions, which is
+// unstyled, unthemed, and blocks the main thread. Follows SyncOverlay's
+// backdrop + spring-in card idiom.
+//
+// Escape and backdrop-click both cancel, since cancelling is the safe outcome.
+// ---------------------------------------------------------------------------
+function ConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  busyLabel,
+  icon,
+  onConfirm,
+  onCancel,
+  busy = false,
+  destructive = false,
+}: {
+  title: string;
+  body: React.ReactNode;
+  confirmLabel: string;
+  busyLabel?: string;
+  icon?: React.ReactNode;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy?: boolean;
+  destructive?: boolean;
+}) {
+  // Don't let Escape close mid-request: the action is already in flight, and
+  // dismissing would imply it was cancelled.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel, busy]);
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+    >
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={busy ? undefined : onCancel}
+      />
+      <motion.div
+        className="relative z-10 w-full max-w-[380px] rounded-2xl border border-border bg-card px-6 py-6 shadow-2xl shadow-black/20"
+        initial={{ scale: 0.96, opacity: 0, y: 8 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.96, opacity: 0, y: 4 }}
+        transition={{ type: "spring", damping: 28, stiffness: 380 }}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              destructive
+                ? "bg-red-500/10 border border-red-500/20"
+                : "bg-primary/10 border border-primary/20"
+            }`}
+          >
+            <span className={destructive ? "text-red-400" : "text-primary"}>
+              {icon ?? <AlertTriangle className="w-4 h-4" />}
+            </span>
+          </div>
+          <div className="space-y-1.5 pt-0.5">
+            <p id="confirm-dialog-title" className="text-sm font-semibold">
+              {title}
+            </p>
+            <div className="text-xs text-muted-foreground leading-relaxed">{body}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 mt-6">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="h-9 px-4 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            autoFocus
+            className={`h-9 px-4 rounded-full text-xs font-semibold text-white flex items-center gap-1.5 transition-all disabled:opacity-60 ${
+              destructive
+                ? "bg-red-500 hover:bg-red-500/90"
+                : "bg-primary hover:bg-primary/90"
+            }`}
+          >
+            {busy && (
+              <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
+            )}
+            {busy ? (busyLabel ?? "Working…") : confirmLabel}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Post-sync feedback toast
 // ---------------------------------------------------------------------------
 function FeedbackToast({ onDone }: { onDone: () => void }) {
@@ -868,6 +978,90 @@ function FeedbackToast({ onDone }: { onDone: () => void }) {
           </button>
         </div>
       )}
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Share-publish failure toast
+//
+// The share link is copied to the clipboard inside the click gesture (browsers
+// reject clipboard writes after an await), so the copy can succeed while the
+// request that actually makes the summary public fails. The user is then
+// holding a link that 404s for whoever they send it to, and nothing else in
+// the UI would tell them. Deliberately not auto-dismissed: this needs an
+// action, not a glance.
+// ---------------------------------------------------------------------------
+function ShareErrorToast({
+  onRetry,
+  onDismiss,
+}: {
+  onRetry: () => Promise<boolean>;
+  onDismiss: () => void;
+}) {
+  const [retrying, setRetrying] = useState(false);
+  const [failedAgain, setFailedAgain] = useState(false);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    setFailedAgain(false);
+    const ok = await onRetry();
+    setRetrying(false);
+    if (ok) onDismiss();
+    else setFailedAgain(true);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.97 }}
+      transition={{ type: "spring", damping: 28, stiffness: 380 }}
+      role="alert"
+      className="fixed bottom-5 right-5 z-50 w-[300px] rounded-2xl border border-red-500/30 bg-card shadow-2xl shadow-black/20 px-4 py-4"
+    >
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+            <p className="text-sm font-semibold leading-snug">Link isn&apos;t live yet</p>
+          </div>
+          <button
+            onClick={onDismiss}
+            className="text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-0.5 flex-shrink-0"
+            aria-label="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          The link was copied, but publishing this story failed. Anyone you send
+          it to will see a Not Found page.
+        </p>
+        {failedAgain && (
+          <p className="text-xs text-red-400 leading-relaxed">
+            Still failing — check your connection.
+          </p>
+        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="flex-1 h-9 rounded-xl bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all disabled:opacity-70 flex items-center justify-center gap-1.5"
+          >
+            {retrying && (
+              <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
+            )}
+            {retrying ? "Publishing…" : "Try again"}
+          </button>
+          <button
+            onClick={onDismiss}
+            className="h-9 px-3 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -2345,6 +2539,11 @@ export default function Dashboard() {
   const [syncErrorCode, setSyncErrorCode] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  // Summary id whose share link was copied but never published.
+  const [shareError, setShareError] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showDigestOptIn, setShowDigestOptIn] = useState(false);
 
@@ -2895,16 +3094,71 @@ export default function Dashboard() {
     }
   };
 
+  // Flips is_public so /share/[id] will serve the row. Extracted so the
+  // error toast's Retry can re-run exactly the request that failed.
+  //
+  // `res.ok` alone is not enough. When the Clerk session has expired the
+  // middleware answers with a 307 to /sign-in, fetch follows it, and the
+  // sign-in page returns 200 — so a request that never reached the route
+  // handler looks like a success. Reject redirects, and require the route's
+  // own {ok:true} rather than trusting a status code.
+  const publishSummary = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/update-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_public: true }),
+      });
+      if (!res.ok || res.redirected) return false;
+      const data = await res.json().catch(() => null);
+      return data?.ok === true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Summaries are private until shared — /share/[id] only serves rows with
+  // is_public set. Copy the link immediately (clipboard writes must happen in
+  // the click's user gesture, not after an await), then publish.
+  //
+  // The copy and the publish can therefore disagree: if publishing fails the
+  // user is holding a link that 404s for whoever they send it to. Surface that
+  // rather than let them find out from the recipient.
   const handleShare = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const url = `${window.location.origin}/share/${id}`;
       navigator.clipboard.writeText(url).catch(() => {});
       setCopying(`share-${id}`);
       setTimeout(() => setCopying(null), 2000);
       ph?.capture("article_shared");
+
+      if (!(await publishSummary(id))) {
+        setCopying(null);
+        setShareError(id);
+      }
     },
-    [ph],
+    [ph, publishSummary],
   );
+
+  // Revokes the grant with Google server-side, not just locally — the point is
+  // that Pidgin actually loses inbox access, not that it stops asking.
+  const handleDisconnect = useCallback(async () => {
+    setDisconnecting(true);
+    setDisconnectError(null);
+    try {
+      const res = await fetch("/api/auth/google", { method: "DELETE" });
+      if (!res.ok) throw new Error("disconnect failed");
+      ph?.capture("gmail_disconnected");
+      setGmailConnected(false);
+      setConfirmDisconnect(false);
+    } catch {
+      // Keep the dialog open and say so inline, rather than dismissing it and
+      // leaving the user unsure whether Gmail is still connected.
+      setDisconnectError("Could not disconnect Gmail. Please try again.");
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [ph]);
 
   const handleFlag = useCallback(
     (id: string) => {
@@ -3121,6 +3375,18 @@ export default function Dashboard() {
   // ── Render ─────────────────────────────────────────────────────────────────
   if (!isLoaded) return <div className="min-h-screen bg-background" />;
 
+  // Disconnecting Gmail stops new syncs; it doesn't destroy what's already
+  // been collected. So "no Gmail" alone shouldn't send someone back to the
+  // onboarding screen and hide a dashboard full of their own summaries — only
+  // "no Gmail and nothing to show" should. Someone who disconnected keeps
+  // reading their archive behind a reconnect banner.
+  //
+  // Gated on !loading so the decision isn't made before summaries have
+  // arrived, which would flash onboarding at a returning disconnected user.
+  const hasHistory = summaries.length > 0;
+  const isDisconnected = gmailConnected === false;
+  const showOnboarding = isDisconnected && !loading && !hasHistory;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* ── Selection modal ─────────────────────────────────────────────── */}
@@ -3231,6 +3497,49 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
+      {/* ── Disconnect confirmation ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {confirmDisconnect && (
+          <ConfirmDialog
+            key="confirm-disconnect"
+            destructive
+            title="Disconnect Gmail?"
+            confirmLabel="Disconnect"
+            busyLabel="Disconnecting…"
+            icon={<Unplug className="w-4 h-4" />}
+            busy={disconnecting}
+            onCancel={() => setConfirmDisconnect(false)}
+            onConfirm={handleDisconnect}
+            body={
+              <>
+                <p>
+                  Pidgin will immediately lose access to your inbox, and no new
+                  stories will sync.
+                </p>
+                <p className="mt-1.5">
+                  Your saved summaries stay in your dashboard. You can reconnect
+                  at any time.
+                </p>
+                {disconnectError && (
+                  <p className="mt-2.5 text-red-400 font-medium">{disconnectError}</p>
+                )}
+              </>
+            }
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Share publish failure ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {shareError && (
+          <ShareErrorToast
+            key="share-error"
+            onRetry={() => publishSummary(shareError)}
+            onDismiss={() => setShareError(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -3245,8 +3554,8 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* ── Onboarding (Gmail not yet connected) ─────────────────────────── */}
-      {gmailConnected === false && (
+      {/* ── Onboarding (Gmail never connected, nothing to show) ──────────── */}
+      {showOnboarding && (
         <main className="min-h-[calc(100vh-57px)] flex items-center justify-center px-4 py-16">
           <div className="w-full max-w-md">
             <div className="rounded-2xl border border-border bg-card p-8 shadow-xl shadow-black/20 space-y-7">
@@ -3343,9 +3652,42 @@ export default function Dashboard() {
         </main>
       )}
 
-      {/* ── Dashboard (Gmail connected or loading) ────────────────────────── */}
-      {gmailConnected !== false && (
+      {/* ── Dashboard (connected, loading, or disconnected-with-history) ──── */}
+      {!showOnboarding && (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 space-y-6">
+          {/* Only reachable after an explicit disconnect — the archive is
+              still readable, but nothing new will arrive until they reconnect. */}
+          {isDisconnected && hasHistory && (
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <Unplug className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <p className="text-sm text-foreground/80">
+                  Gmail is disconnected. Your saved summaries are still here —
+                  reconnect to sync new stories.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                disabled={connectingGmail}
+                onClick={() => {
+                  setConnectingGmail(true);
+                  window.location.href = "/api/auth/google";
+                }}
+                className="gap-1.5 h-8"
+              >
+                {connectingGmail ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Connecting…
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-3.5 h-3.5" /> Reconnect Gmail
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
           {/* ── Hero greeting ──────────────────────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -3432,6 +3774,17 @@ export default function Dashboard() {
                     disabled={loading || syncing}
                   />
                 )}
+                <button
+                  onClick={() => {
+                    setDisconnectError(null);
+                    setConfirmDisconnect(true);
+                  }}
+                  title="Disconnect Gmail"
+                  className="h-9 px-3.5 rounded-full border border-border bg-secondary/40 text-sm font-medium text-muted-foreground flex items-center gap-1.5 transition-all hover:text-red-400 hover:border-red-500/40"
+                >
+                  <Unplug className="w-3.5 h-3.5" />
+                  Disconnect
+                </button>
               </div>
             )}
           </motion.div>

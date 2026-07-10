@@ -28,7 +28,19 @@ export interface Summary {
   significance: string | null;
   is_bookmarked: boolean;
   is_read: boolean;
+  is_public: boolean;
 }
+
+// Everything except original_content — the raw newsletter body, which the
+// client never renders. Shipping it to the browser on every dashboard load
+// was pure data exposure (and bandwidth) for no product benefit.
+const CLIENT_SUMMARY_COLUMNS =
+  "id, created_at, user_id, newsletter_title, summary, simple_explanation, key_points, " +
+  "linkedin_post, twitter_post, source_email, source_email_id, processed_date, category, " +
+  "source_url, topic_key, source_type, why_it_matters, what_to_do, significance, " +
+  "is_bookmarked, is_read, is_public";
+
+export type ClientSummary = Omit<Summary, "original_content">;
 
 // Columns that may not exist yet in a given environment's DB (migration not
 // yet applied). saveSummary retries without whichever of these the DB
@@ -36,7 +48,7 @@ export interface Summary {
 const OPTIONAL_SUMMARY_COLUMNS = ["topic_key", "source_type", "why_it_matters", "what_to_do", "significance"];
 
 export async function saveSummary(
-  data: Omit<Summary, "id" | "created_at">,
+  data: Omit<Summary, "id" | "created_at" | "is_public">,
   userId: string
 ) {
   const payload: Record<string, unknown> = { ...data, user_id: userId };
@@ -72,16 +84,32 @@ export async function getTodaysSummaries(userId: string): Promise<Summary[]> {
   return (data ?? []) as Summary[];
 }
 
-export async function getAllSummaries(userId: string, limit = 100): Promise<Summary[]> {
+export async function getAllSummaries(userId: string, limit = 100): Promise<ClientSummary[]> {
   const { data, error } = await supabase
     .from("summaries")
-    .select("*")
+    .select(CLIENT_SUMMARY_COLUMNS)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
-  return (data ?? []) as Summary[];
+  return (data ?? []) as unknown as ClientSummary[];
+}
+
+// The share page is public and unauthenticated, so this is deliberately the
+// only summary read not scoped to a user_id — is_public is what stands in for
+// ownership. Sharing is opt-in (default false); nothing is readable by URL
+// alone until the owner flips the flag.
+export async function getPublicSummary(id: string): Promise<ClientSummary | null> {
+  const { data, error } = await supabase
+    .from("summaries")
+    .select(CLIENT_SUMMARY_COLUMNS)
+    .eq("id", id)
+    .eq("is_public", true)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as unknown as ClientSummary;
 }
 
 export async function getSummaryById(id: string, userId: string): Promise<Summary | null> {
@@ -99,7 +127,9 @@ export async function getSummaryById(id: string, userId: string): Promise<Summar
 export async function updateSummary(
   id: string,
   userId: string,
-  updates: Partial<Pick<Summary, "linkedin_post" | "twitter_post" | "is_bookmarked" | "is_read">>
+  updates: Partial<
+    Pick<Summary, "linkedin_post" | "twitter_post" | "is_bookmarked" | "is_read" | "is_public">
+  >
 ) {
   const { error } = await supabase
     .from("summaries")
@@ -248,6 +278,12 @@ export async function getRecentTopics(userId: string, sinceHours = 48): Promise<
 // key_points, why_it_matters, what_to_do, topic_key, significance) intact:
 // that's the actual "memory" trend badges and topic history depend on, and
 // it's cheap enough to keep far longer than the raw content.
+//
+// Deliberately NOT filtered on is_bookmarked. Bookmarking preserves the row
+// (see deleteOldSummaries), but nothing about a bookmark needs the raw email
+// body — and exempting bookmarked rows meant a user could silently retain
+// full newsletter bodies forever, contradicting the 7-day promise in
+// app/privacy/page.tsx. The derived insight is what a bookmark is for.
 export async function clearOldRawContent(userId: string, daysOld = 7): Promise<number> {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysOld);
@@ -256,7 +292,6 @@ export async function clearOldRawContent(userId: string, daysOld = 7): Promise<n
     .from("summaries")
     .update({ original_content: "" })
     .eq("user_id", userId)
-    .eq("is_bookmarked", false)
     .lt("created_at", cutoffDate.toISOString())
     .neq("original_content", "")
     .select();

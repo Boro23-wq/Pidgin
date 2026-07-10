@@ -8,6 +8,7 @@ import {
   getDismissedEmailIds,
 } from "@/lib/supabase";
 import { batchFlagEmails } from "@/lib/claude";
+import { isRateLimited } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -44,6 +45,15 @@ export async function POST() {
   try {
     const { userId } = await auth();
     if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Consumes Gmail API quota and a Claude classification pass per call.
+    // Scanning is cheap enough to allow freely, but not unboundedly.
+    if (isRateLimited(`scan:${userId}`, 20, 60 * 60 * 1000)) {
+      return Response.json(
+        { error: "Too many scans. Please wait a few minutes and try again." },
+        { status: 429 },
+      );
+    }
 
     let tokens;
     try {
