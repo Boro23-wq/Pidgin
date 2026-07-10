@@ -13,8 +13,16 @@ interface OnboardingFlowProps {
 
 const fadeSlide = {
   initial: { opacity: 0, y: 24 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
-  exit:    { opacity: 0, y: -16, transition: { duration: 0.22, ease: "easeIn" as const } },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: "easeOut" as const },
+  },
+  exit: {
+    opacity: 0,
+    y: -16,
+    transition: { duration: 0.22, ease: "easeIn" as const },
+  },
 };
 
 const staggerList = {
@@ -23,7 +31,11 @@ const staggerList = {
 
 const listItem = {
   initial: { opacity: 0, x: -10 },
-  animate: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" as const } },
+  animate: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.3, ease: "easeOut" as const },
+  },
 };
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
@@ -31,22 +43,26 @@ function StepDots({ current }: { current: 1 | 2 | 3 }) {
   return (
     <div className="flex items-center gap-3 mb-12">
       {([1, 2, 3] as const).map((s) => {
-        const done   = s < current;
+        const done = s < current;
         const active = s === current;
         return (
           <div key={s} className="flex items-center gap-3">
             <motion.div
               layout
               className={`flex items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-300 ${
-                done   ? "w-6 h-6 bg-primary text-white" :
-                active ? "w-6 h-6 bg-primary text-white ring-4 ring-primary/20" :
-                         "w-5 h-5 bg-secondary text-muted-foreground/50 text-[10px]"
+                done
+                  ? "w-6 h-6 bg-primary text-white"
+                  : active
+                    ? "w-6 h-6 bg-primary text-white ring-4 ring-primary/20"
+                    : "w-5 h-5 bg-secondary text-muted-foreground/50 text-[10px]"
               }`}
             >
               {done ? <Check className="w-3 h-3" /> : s}
             </motion.div>
             {s < 3 && (
-              <div className={`h-px w-10 transition-colors duration-500 ${s < current ? "bg-primary/60" : "bg-border"}`} />
+              <div
+                className={`h-px w-10 transition-colors duration-500 ${s < current ? "bg-primary/60" : "bg-border"}`}
+              />
             )}
           </div>
         );
@@ -60,13 +76,17 @@ function StepConnect() {
   const [connecting, setConnecting] = React.useState(false);
 
   const perms = [
-    { label: "Read your newsletters",       ok: true  },
-    { label: "Send emails on your behalf",  ok: false },
-    { label: "Delete or modify emails",     ok: false },
+    { label: "Read your newsletters", ok: true },
+    { label: "Send emails on your behalf", ok: false },
+    { label: "Delete or modify emails", ok: false },
   ];
 
   return (
-    <motion.div key="step1" {...fadeSlide} className="w-full max-w-sm text-center">
+    <motion.div
+      key="step1"
+      {...fadeSlide}
+      className="w-full max-w-sm text-center"
+    >
       {/* Icon */}
       <div className="flex justify-center mb-8">
         <div className="relative">
@@ -97,8 +117,9 @@ function StepConnect() {
         transition={{ delay: 0.22, duration: 0.35 }}
         className="text-sm text-muted-foreground leading-relaxed mb-8"
       >
-        Pidgin reads your newsletters and ranks what actually matters.<br />
-        Read-only access — we never send or delete anything.
+        Pidgin reads your newsletters and ranks what actually matters.
+        <br />
+        Read-only access. We never send or delete anything.
       </motion.p>
 
       {/* Permissions */}
@@ -109,11 +130,23 @@ function StepConnect() {
         className="text-left space-y-2.5 mb-10 bg-secondary/30 border border-border/50 rounded-xl px-5 py-4"
       >
         {perms.map(({ label, ok }) => (
-          <motion.li key={label} variants={listItem} className="flex items-center gap-3">
-            <span className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${ok ? "bg-emerald-500/20 text-emerald-400" : "bg-secondary text-muted-foreground/30"}`}>
-              {ok ? <Check className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
+          <motion.li
+            key={label}
+            variants={listItem}
+            className="flex items-center gap-3"
+          >
+            <span
+              className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${ok ? "bg-emerald-500/20 text-emerald-400" : "bg-secondary text-muted-foreground/30"}`}
+            >
+              {ok ? (
+                <Check className="w-2.5 h-2.5" />
+              ) : (
+                <X className="w-2.5 h-2.5" />
+              )}
             </span>
-            <span className={`text-sm ${ok ? "text-foreground/80" : "text-muted-foreground/40 line-through"}`}>
+            <span
+              className={`text-sm ${ok ? "text-foreground/80" : "text-muted-foreground/40 line-through"}`}
+            >
               {label}
             </span>
           </motion.li>
@@ -128,13 +161,20 @@ function StepConnect() {
       >
         <button
           disabled={connecting}
-          onClick={() => { setConnecting(true); window.location.href = "/api/auth/google"; }}
+          onClick={() => {
+            setConnecting(true);
+            window.location.href = "/api/auth/google";
+          }}
           className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground font-semibold text-sm shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-80 disabled:scale-100 disabled:cursor-not-allowed"
         >
           {connecting ? (
-            <><Spinner /> Connecting…</>
+            <>
+              <Spinner /> Connecting…
+            </>
           ) : (
-            <>Get my Morning Brief <ArrowRight className="w-4 h-4" /></>
+            <>
+              Get my Morning Brief <ArrowRight className="w-4 h-4" />
+            </>
           )}
         </button>
       </motion.div>
@@ -143,9 +183,19 @@ function StepConnect() {
 }
 
 // ── Step 2: Scan inbox ─────────────────────────────────────────────────────────
-function StepScan({ onStartScan, scanning }: { onStartScan: () => void; scanning: boolean }) {
+function StepScan({
+  onStartScan,
+  scanning,
+}: {
+  onStartScan: () => void;
+  scanning: boolean;
+}) {
   return (
-    <motion.div key="step2" {...fadeSlide} className="w-full max-w-sm text-center">
+    <motion.div
+      key="step2"
+      {...fadeSlide}
+      className="w-full max-w-sm text-center"
+    >
       {/* Icon */}
       <div className="flex justify-center mb-8">
         <div className="relative">
@@ -189,7 +239,8 @@ function StepScan({ onStartScan, scanning }: { onStartScan: () => void; scanning
         transition={{ delay: 0.26, duration: 0.35 }}
         className="text-sm text-muted-foreground leading-relaxed mb-10"
       >
-        We&apos;ll scan today&apos;s inbox and show you what arrived.<br />
+        We&apos;ll scan today&apos;s inbox and show you what arrived.
+        <br />
         You pick what to import — nothing happens automatically.
       </motion.p>
 
@@ -201,15 +252,30 @@ function StepScan({ onStartScan, scanning }: { onStartScan: () => void; scanning
         className="text-left space-y-3 mb-10 bg-secondary/30 border border-border/50 rounded-xl px-5 py-4"
       >
         {[
-          { step: "1", text: "We scan your inbox — metadata only, no body download yet" },
-          { step: "2", text: "You see a list of newsletters found — tick the ones you want" },
-          { step: "3", text: "Claude reads and summarises each one you selected" },
+          {
+            step: "1",
+            text: "We scan your inbox — metadata only, no body download yet",
+          },
+          {
+            step: "2",
+            text: "You see a list of newsletters found — tick the ones you want",
+          },
+          {
+            step: "3",
+            text: "Claude reads and summarises each one you selected",
+          },
         ].map(({ step, text }) => (
-          <motion.div key={step} variants={listItem} className="flex items-start gap-3">
+          <motion.div
+            key={step}
+            variants={listItem}
+            className="flex items-start gap-3"
+          >
             <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
               {step}
             </span>
-            <span className="text-sm text-muted-foreground leading-relaxed">{text}</span>
+            <span className="text-sm text-muted-foreground leading-relaxed">
+              {text}
+            </span>
           </motion.div>
         ))}
       </motion.div>
@@ -226,9 +292,13 @@ function StepScan({ onStartScan, scanning }: { onStartScan: () => void; scanning
           className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground font-semibold text-sm shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:scale-100 disabled:cursor-not-allowed"
         >
           {scanning ? (
-            <><Spinner /> Scanning…</>
+            <>
+              <Spinner /> Scanning…
+            </>
           ) : (
-            <>Scan inbox <ArrowRight className="w-4 h-4" /></>
+            <>
+              Scan inbox <ArrowRight className="w-4 h-4" />
+            </>
           )}
         </button>
       </motion.div>
@@ -237,7 +307,11 @@ function StepScan({ onStartScan, scanning }: { onStartScan: () => void; scanning
 }
 
 // ── Main export ────────────────────────────────────────────────────────────────
-export function OnboardingFlow({ gmailConnected, onStartScan, scanning }: OnboardingFlowProps) {
+export function OnboardingFlow({
+  gmailConnected,
+  onStartScan,
+  scanning,
+}: OnboardingFlowProps) {
   const step = gmailConnected ? 2 : 1;
 
   return (
@@ -245,7 +319,9 @@ export function OnboardingFlow({ gmailConnected, onStartScan, scanning }: Onboar
       <StepDots current={step as 1 | 2 | 3} />
       <AnimatePresence mode="wait">
         {step === 1 && <StepConnect key="connect" />}
-        {step === 2 && <StepScan key="scan" onStartScan={onStartScan} scanning={scanning} />}
+        {step === 2 && (
+          <StepScan key="scan" onStartScan={onStartScan} scanning={scanning} />
+        )}
       </AnimatePresence>
     </div>
   );
