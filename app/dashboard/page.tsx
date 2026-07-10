@@ -437,7 +437,11 @@ function SyncButton({
       disabled={disabled || scanning}
       className="flex-shrink-0 h-9 px-4 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 text-sm font-medium transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      {scanning ? <Spinner /> : <ArrowDownToLine className="w-4 h-4 flex-shrink-0" />}
+      {scanning ? (
+        <Spinner />
+      ) : (
+        <ArrowDownToLine className="w-4 h-4 flex-shrink-0" />
+      )}
       <span>{scanning ? "Scanning…" : "Sync inbox"}</span>
     </button>
   );
@@ -759,7 +763,6 @@ function SyncOverlay({
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // Post-sync feedback toast
 // ---------------------------------------------------------------------------
@@ -914,7 +917,9 @@ function ShareErrorToast({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-            <p className="text-sm font-semibold leading-snug">Link isn&apos;t live yet</p>
+            <p className="text-sm font-semibold leading-snug">
+              Link isn&apos;t live yet
+            </p>
           </div>
           <button
             onClick={onDismiss}
@@ -966,6 +971,7 @@ function DigestOptInToast({
 }) {
   const [enabling, setEnabling] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const toastRef = useRef<HTMLDivElement>(null);
 
   const handleEnable = async () => {
     setEnabling(true);
@@ -982,13 +988,26 @@ function DigestOptInToast({
   // after the user has had a moment to read the confirmation.
   useEffect(() => {
     if (!subscribed) return;
+
+    // Burst from the toast's actual centre. A hardcoded origin guessed wrong
+    // on wide viewports — the toast is pinned bottom-right, so its centre
+    // drifts further right the wider the window, and the confetti landed to
+    // its left. canvas-confetti's origin is normalized to the window (0–1).
+    const rect = toastRef.current?.getBoundingClientRect();
+    const origin = rect
+      ? {
+          x: (rect.left + rect.width / 2) / window.innerWidth,
+          y: (rect.top + rect.height / 2) / window.innerHeight,
+        }
+      : { x: 0.5, y: 0.5 };
+
     confetti({
       particleCount: 30,
       spread: 50,
       startVelocity: 22,
       scalar: 0.7,
       ticks: 150,
-      origin: { x: 0.82, y: 0.85 },
+      origin,
     });
     const t = setTimeout(onEnabled, 3200);
     return () => clearTimeout(t);
@@ -996,6 +1015,7 @@ function DigestOptInToast({
 
   return (
     <motion.div
+      ref={toastRef}
       initial={{ opacity: 0, y: 16, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 12, scale: 0.97 }}
@@ -1009,8 +1029,8 @@ function DigestOptInToast({
             You&apos;re subscribed!
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            We&apos;ll help you focus on what matters most — starting with tomorrow&apos;s
-            brief.
+            We&apos;ll help you focus on what matters most — starting with
+            tomorrow&apos;s brief.
           </p>
         </div>
       ) : (
@@ -1790,7 +1810,9 @@ function CollapsibleSection({
         onClick={onToggle}
         className="w-full flex items-center gap-3 px-0.5 group/section"
       >
-        {dividerBefore && showDivider && <div className="flex-1 h-px bg-border/40" />}
+        {dividerBefore && showDivider && (
+          <div className="flex-1 h-px bg-border/40" />
+        )}
         <span
           className={`text-[11px] font-semibold uppercase tracking-widest flex-shrink-0 transition-colors ${labelClassName}`}
         >
@@ -2476,13 +2498,16 @@ export default function Dashboard() {
           });
           // Marking-as-read on expand is low stakes; don't yank the user to
           // /sign-in mid-scroll for it, just don't pretend it persisted.
-          void apiPost("/api/update-summary", { id, is_read: true }).then((res) => {
-            if (!res.ok) setRead((cur) => {
-              const back = new Set(cur);
-              back.delete(id);
-              return back;
-            });
-          });
+          void apiPost("/api/update-summary", { id, is_read: true }).then(
+            (res) => {
+              if (!res.ok)
+                setRead((cur) => {
+                  const back = new Set(cur);
+                  back.delete(id);
+                  return back;
+                });
+            },
+          );
         });
       }
     },
@@ -2502,7 +2527,9 @@ export default function Dashboard() {
   const [pageInput, setPageInput] = useState("1");
   useEffect(() => setPageInput(String(page)), [page]);
   const PER_PAGE = 20;
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+    new Set(),
+  );
   const toggleSection = useCallback((key: string) => {
     setCollapsedSections((prev) => {
       const next = new Set(prev);
@@ -2609,7 +2636,12 @@ export default function Dashboard() {
       .then((r) => r.json())
       .then((d) => {
         setGmailConnected(d.connected);
-        if (d.lastSyncedAt) setLastSynced(new Date(d.lastSyncedAt + (d.lastSyncedAt.endsWith("Z") ? "" : "Z")));
+        if (d.lastSyncedAt)
+          setLastSynced(
+            new Date(
+              d.lastSyncedAt + (d.lastSyncedAt.endsWith("Z") ? "" : "Z"),
+            ),
+          );
       })
       .catch(() => setGmailConnected(false));
     fetch("/api/dismiss")
@@ -3430,7 +3462,9 @@ export default function Dashboard() {
                   at any time.
                 </p>
                 {disconnectError && (
-                  <p className="mt-2.5 text-red-400 font-medium">{disconnectError}</p>
+                  <p className="mt-2.5 text-red-400 font-medium">
+                    {disconnectError}
+                  </p>
                 )}
               </>
             }
@@ -3571,8 +3605,8 @@ export default function Dashboard() {
               <div className="flex items-center gap-2.5">
                 <Unplug className="w-4 h-4 text-amber-500 flex-shrink-0" />
                 <p className="text-sm text-foreground/80">
-                  Gmail is disconnected. Your saved summaries are still here —
-                  reconnect to sync new stories.
+                  Gmail is disconnected. Your saved summaries are still here.
+                  Reconnect to sync new stories.
                 </p>
               </div>
               <Button
@@ -3602,7 +3636,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            className="relative flex flex-wrap items-end justify-between gap-4 pt-10 pb-2"
+            className="relative flex flex-wrap items-end justify-between gap-4 pt-4 pb-2"
           >
             {/* subtle glow orb */}
             <div
@@ -3627,7 +3661,11 @@ export default function Dashboard() {
               </p>
               {lastSynced && (
                 <p className="text-xs text-muted-foreground/40 mt-1">
-                  Last synced {lastSynced.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  Last synced{" "}
+                  {lastSynced.toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
                 </p>
               )}
             </div>
@@ -3946,9 +3984,12 @@ export default function Dashboard() {
               <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-4">
                 <RefreshCw className="w-5 h-5 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium mb-1">Couldn&apos;t load your brief</p>
+              <p className="text-sm font-medium mb-1">
+                Couldn&apos;t load your brief
+              </p>
               <p className="text-xs text-muted-foreground mb-4 max-w-xs">
-                Something went wrong loading your stories — this doesn&apos;t mean you have none, we just couldn&apos;t check right now.
+                Something went wrong loading your stories — this doesn&apos;t
+                mean you have none, we just couldn&apos;t check right now.
               </p>
               <button
                 onClick={() => {
@@ -4076,8 +4117,12 @@ export default function Dashboard() {
                             label={dateGroup.label}
                             labelClassName="text-muted-foreground/50"
                             showDivider={false}
-                            collapsed={collapsedSections.has(`date:${dateGroup.label}`)}
-                            onToggle={() => toggleSection(`date:${dateGroup.label}`)}
+                            collapsed={collapsedSections.has(
+                              `date:${dateGroup.label}`,
+                            )}
+                            onToggle={() =>
+                              toggleSection(`date:${dateGroup.label}`)
+                            }
                           >
                             <TopicCardGrid
                               groups={dateGroup.groups}
