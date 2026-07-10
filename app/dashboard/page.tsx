@@ -983,6 +983,90 @@ function FeedbackToast({ onDone }: { onDone: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Share-publish failure toast
+//
+// The share link is copied to the clipboard inside the click gesture (browsers
+// reject clipboard writes after an await), so the copy can succeed while the
+// request that actually makes the summary public fails. The user is then
+// holding a link that 404s for whoever they send it to, and nothing else in
+// the UI would tell them. Deliberately not auto-dismissed: this needs an
+// action, not a glance.
+// ---------------------------------------------------------------------------
+function ShareErrorToast({
+  onRetry,
+  onDismiss,
+}: {
+  onRetry: () => Promise<boolean>;
+  onDismiss: () => void;
+}) {
+  const [retrying, setRetrying] = useState(false);
+  const [failedAgain, setFailedAgain] = useState(false);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    setFailedAgain(false);
+    const ok = await onRetry();
+    setRetrying(false);
+    if (ok) onDismiss();
+    else setFailedAgain(true);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.97 }}
+      transition={{ type: "spring", damping: 28, stiffness: 380 }}
+      role="alert"
+      className="fixed bottom-5 right-5 z-50 w-[300px] rounded-2xl border border-red-500/30 bg-card shadow-2xl shadow-black/20 px-4 py-4"
+    >
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+            <p className="text-sm font-semibold leading-snug">Link isn&apos;t live yet</p>
+          </div>
+          <button
+            onClick={onDismiss}
+            className="text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-0.5 flex-shrink-0"
+            aria-label="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          The link was copied, but publishing this story failed. Anyone you send
+          it to will see a Not Found page.
+        </p>
+        {failedAgain && (
+          <p className="text-xs text-red-400 leading-relaxed">
+            Still failing — check your connection.
+          </p>
+        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="flex-1 h-9 rounded-xl bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all disabled:opacity-70 flex items-center justify-center gap-1.5"
+          >
+            {retrying && (
+              <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
+            )}
+            {retrying ? "Publishing…" : "Try again"}
+          </button>
+          <button
+            onClick={onDismiss}
+            className="h-9 px-3 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Digest opt-in toast (shown after first ever sync)
 // ---------------------------------------------------------------------------
 function DigestOptInToast({
@@ -2458,6 +2542,8 @@ export default function Dashboard() {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  // Summary id whose share link was copied but never published.
+  const [shareError, setShareError] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showDigestOptIn, setShowDigestOptIn] = useState(false);
 
@@ -3008,12 +3094,35 @@ export default function Dashboard() {
     }
   };
 
+  // Flips is_public so /share/[id] will serve the row. Extracted so the
+  // error toast's Retry can re-run exactly the request that failed.
+  //
+  // `res.ok` alone is not enough. When the Clerk session has expired the
+  // middleware answers with a 307 to /sign-in, fetch follows it, and the
+  // sign-in page returns 200 — so a request that never reached the route
+  // handler looks like a success. Reject redirects, and require the route's
+  // own {ok:true} rather than trusting a status code.
+  const publishSummary = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/update-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_public: true }),
+      });
+      if (!res.ok || res.redirected) return false;
+      const data = await res.json().catch(() => null);
+      return data?.ok === true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Summaries are private until shared — /share/[id] only serves rows with
   // is_public set. Copy the link immediately (clipboard writes must happen in
   // the click's user gesture, not after an await), then publish.
   //
   // The copy and the publish can therefore disagree: if publishing fails the
-  // user is holding a link that 404s for whoever they send it to. Say so,
+  // user is holding a link that 404s for whoever they send it to. Surface that
   // rather than let them find out from the recipient.
   const handleShare = useCallback(
     async (id: string) => {
@@ -3023,22 +3132,12 @@ export default function Dashboard() {
       setTimeout(() => setCopying(null), 2000);
       ph?.capture("article_shared");
 
-      try {
-        const res = await fetch("/api/update-summary", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, is_public: true }),
-        });
-        if (!res.ok) throw new Error("publish failed");
-      } catch {
+      if (!(await publishSummary(id))) {
         setCopying(null);
-        window.alert(
-          "The link was copied, but publishing this story failed — anyone you send it to will see a Not Found page.\n\n" +
-            "Check your connection and press Share again.",
-        );
+        setShareError(id);
       }
     },
-    [ph],
+    [ph, publishSummary],
   );
 
   // Revokes the grant with Google server-side, not just locally — the point is
@@ -3426,6 +3525,17 @@ export default function Dashboard() {
                 )}
               </>
             }
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Share publish failure ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {shareError && (
+          <ShareErrorToast
+            key="share-error"
+            onRetry={() => publishSummary(shareError)}
+            onDismiss={() => setShareError(null)}
           />
         )}
       </AnimatePresence>
