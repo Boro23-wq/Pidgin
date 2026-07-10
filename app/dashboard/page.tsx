@@ -33,6 +33,7 @@ import {
   ThumbsUp,
   Share2,
   Unplug,
+  AlertTriangle,
   MessageSquare,
   CheckCheck,
   TrendingUp,
@@ -756,6 +757,114 @@ function SyncOverlay({
             )}
           </div>
         )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Confirm dialog — replaces window.confirm for destructive actions, which is
+// unstyled, unthemed, and blocks the main thread. Follows SyncOverlay's
+// backdrop + spring-in card idiom.
+//
+// Escape and backdrop-click both cancel, since cancelling is the safe outcome.
+// ---------------------------------------------------------------------------
+function ConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  busyLabel,
+  icon,
+  onConfirm,
+  onCancel,
+  busy = false,
+  destructive = false,
+}: {
+  title: string;
+  body: React.ReactNode;
+  confirmLabel: string;
+  busyLabel?: string;
+  icon?: React.ReactNode;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy?: boolean;
+  destructive?: boolean;
+}) {
+  // Don't let Escape close mid-request: the action is already in flight, and
+  // dismissing would imply it was cancelled.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel, busy]);
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+    >
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={busy ? undefined : onCancel}
+      />
+      <motion.div
+        className="relative z-10 w-full max-w-[380px] rounded-2xl border border-border bg-card px-6 py-6 shadow-2xl shadow-black/20"
+        initial={{ scale: 0.96, opacity: 0, y: 8 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.96, opacity: 0, y: 4 }}
+        transition={{ type: "spring", damping: 28, stiffness: 380 }}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              destructive
+                ? "bg-red-500/10 border border-red-500/20"
+                : "bg-primary/10 border border-primary/20"
+            }`}
+          >
+            <span className={destructive ? "text-red-400" : "text-primary"}>
+              {icon ?? <AlertTriangle className="w-4 h-4" />}
+            </span>
+          </div>
+          <div className="space-y-1.5 pt-0.5">
+            <p id="confirm-dialog-title" className="text-sm font-semibold">
+              {title}
+            </p>
+            <div className="text-xs text-muted-foreground leading-relaxed">{body}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 mt-6">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="h-9 px-4 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            autoFocus
+            className={`h-9 px-4 rounded-full text-xs font-semibold text-white flex items-center gap-1.5 transition-all disabled:opacity-60 ${
+              destructive
+                ? "bg-red-500 hover:bg-red-500/90"
+                : "bg-primary hover:bg-primary/90"
+            }`}
+          >
+            {busy && (
+              <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
+            )}
+            {busy ? (busyLabel ?? "Working…") : confirmLabel}
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );
@@ -2346,7 +2455,9 @@ export default function Dashboard() {
   const [syncErrorCode, setSyncErrorCode] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showDigestOptIn, setShowDigestOptIn] = useState(false);
 
@@ -2933,21 +3044,18 @@ export default function Dashboard() {
   // Revokes the grant with Google server-side, not just locally — the point is
   // that Pidgin actually loses inbox access, not that it stops asking.
   const handleDisconnect = useCallback(async () => {
-    const confirmed = window.confirm(
-      "Disconnect Gmail?\n\nPidgin will immediately lose access to your inbox, " +
-        "and no new stories will sync.\n\nYour saved summaries stay in your " +
-        "dashboard. You can reconnect at any time.",
-    );
-    if (!confirmed) return;
-
     setDisconnecting(true);
+    setDisconnectError(null);
     try {
       const res = await fetch("/api/auth/google", { method: "DELETE" });
       if (!res.ok) throw new Error("disconnect failed");
       ph?.capture("gmail_disconnected");
       setGmailConnected(false);
+      setConfirmDisconnect(false);
     } catch {
-      window.alert("Could not disconnect Gmail. Please try again.");
+      // Keep the dialog open and say so inline, rather than dismissing it and
+      // leaving the user unsure whether Gmail is still connected.
+      setDisconnectError("Could not disconnect Gmail. Please try again.");
     } finally {
       setDisconnecting(false);
     }
@@ -3290,6 +3398,38 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
+      {/* ── Disconnect confirmation ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {confirmDisconnect && (
+          <ConfirmDialog
+            key="confirm-disconnect"
+            destructive
+            title="Disconnect Gmail?"
+            confirmLabel="Disconnect"
+            busyLabel="Disconnecting…"
+            icon={<Unplug className="w-4 h-4" />}
+            busy={disconnecting}
+            onCancel={() => setConfirmDisconnect(false)}
+            onConfirm={handleDisconnect}
+            body={
+              <>
+                <p>
+                  Pidgin will immediately lose access to your inbox, and no new
+                  stories will sync.
+                </p>
+                <p className="mt-1.5">
+                  Your saved summaries stay in your dashboard. You can reconnect
+                  at any time.
+                </p>
+                {disconnectError && (
+                  <p className="mt-2.5 text-red-400 font-medium">{disconnectError}</p>
+                )}
+              </>
+            }
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -3525,13 +3665,15 @@ export default function Dashboard() {
                   />
                 )}
                 <button
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
+                  onClick={() => {
+                    setDisconnectError(null);
+                    setConfirmDisconnect(true);
+                  }}
                   title="Disconnect Gmail"
-                  className="h-9 px-3.5 rounded-full border border-border bg-secondary/40 text-sm font-medium text-muted-foreground flex items-center gap-1.5 transition-all hover:text-red-400 hover:border-red-500/40 disabled:opacity-50"
+                  className="h-9 px-3.5 rounded-full border border-border bg-secondary/40 text-sm font-medium text-muted-foreground flex items-center gap-1.5 transition-all hover:text-red-400 hover:border-red-500/40"
                 >
                   <Unplug className="w-3.5 h-3.5" />
-                  {disconnecting ? "Disconnecting…" : "Disconnect"}
+                  Disconnect
                 </button>
               </div>
             )}
