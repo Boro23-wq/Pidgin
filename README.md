@@ -156,7 +156,7 @@ Then run every file in `supabase/migrations/`, in order:
 | `002_significance.sql` | `significance` column for importance ranking |
 | `003_security.sql` | Row-level security, deny-by-default; `is_public` for share links |
 | `004_rate_limits.sql` | Durable rate limiter (table + `check_rate_limit` function) |
-| `005_lockdown_all_tables.sql` | Walks `pg_tables` and locks down anything 003 missed |
+| `005_lockdown_all_tables.sql` | Drops two dead tables, then walks `pg_tables` and locks down anything 003 missed |
 
 `003` and `005` are not optional. Without them the browser-exposed `NEXT_PUBLIC_SUPABASE_ANON_KEY` can read your tables directly. Verify:
 
