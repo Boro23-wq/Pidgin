@@ -18,7 +18,36 @@ const { withSentryConfig } = require("@sentry/nextjs");
 //
 // If a third-party breaks after a dependency upgrade, the fix is almost always
 // adding its origin here — check the browser console for the blocked URI.
-const CLERK = ["https://*.clerk.accounts.dev", "https://*.clerk.com"];
+
+// Clerk serves its JS and API from a "Frontend API" host that differs per
+// environment: `<slug>.clerk.accounts.dev` on a development key, but a CNAME
+// on your own domain (`clerk.pidgin.site`) on a production key. The second one
+// matches neither wildcard below, which is exactly how this policy shipped
+// broken — it passed locally on a pk_test key and blocked all of Clerk in prod.
+//
+// The host is base64-encoded into the publishable key itself, so derive it
+// rather than hardcoding a domain that only one environment uses.
+function clerkFrontendApiOrigin() {
+  const pk = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  if (!pk) return [];
+  try {
+    const host = Buffer.from(pk.replace(/^pk_(test|live)_/, ""), "base64")
+      .toString("utf8")
+      .replace(/\$$/, ""); // the encoded value carries a trailing '$'
+    return /^[a-z0-9.-]+$/i.test(host) ? [`https://${host}`] : [];
+  } catch {
+    return [];
+  }
+}
+
+const CLERK = [
+  "https://*.clerk.accounts.dev",
+  "https://*.clerk.com",
+  ...clerkFrontendApiOrigin(),
+];
+// Clerk phones home to this from the browser. Harmless to block, but it logs a
+// CSP violation on every page load if we do.
+const CLERK_TELEMETRY = ["https://clerk-telemetry.com"];
 const POSTHOG = ["https://us.i.posthog.com", "https://us-assets.i.posthog.com"];
 const SENTRY = ["https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"];
 // Clerk's bot protection renders a Turnstile widget in an iframe.
@@ -30,13 +59,16 @@ const csp = [
   `object-src 'none'`,
   `frame-ancestors 'none'`,
   `form-action 'self'`,
+  // script-src-elem is deliberately not set: it falls back to script-src, and
+  // a second copy of this allowlist is a second place to forget an origin.
   `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${[...CLERK, ...POSTHOG, ...TURNSTILE].join(" ")}`,
   `style-src 'self' 'unsafe-inline'`,
-  `img-src 'self' data: blob: https://img.clerk.com`,
+  `img-src 'self' data: blob: https://img.clerk.com ${CLERK.join(" ")}`,
   `font-src 'self' data:`,
-  // Sentry's Replay integration spawns its worker from a blob URL.
+  // Sentry's Replay integration spawns its worker from a blob URL, and Clerk
+  // loads its bot-detection worker the same way.
   `worker-src 'self' blob:`,
-  `connect-src 'self' ${[...CLERK, ...POSTHOG, ...SENTRY].join(" ")}`,
+  `connect-src 'self' ${[...CLERK, ...CLERK_TELEMETRY, ...POSTHOG, ...SENTRY].join(" ")}`,
   `frame-src 'self' ${[...CLERK, ...TURNSTILE].join(" ")}`,
   `upgrade-insecure-requests`,
 ].join("; ");
