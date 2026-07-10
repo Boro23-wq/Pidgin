@@ -58,6 +58,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { CustomUserButton } from "@/components/custom-user-button";
 import { OnboardingFlow } from "@/components/onboarding-flow";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { apiPost } from "@/lib/api-fetch";
 
 // ---------------------------------------------------------------------------
@@ -436,11 +437,7 @@ function SyncButton({
       disabled={disabled || scanning}
       className="flex-shrink-0 h-9 px-4 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 text-sm font-medium transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      {scanning ? (
-        <span className="w-4 h-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin flex-shrink-0" />
-      ) : (
-        <ArrowDownToLine className="w-4 h-4 flex-shrink-0" />
-      )}
+      {scanning ? <Spinner /> : <ArrowDownToLine className="w-4 h-4 flex-shrink-0" />}
       <span>{scanning ? "Scanning…" : "Sync inbox"}</span>
     </button>
   );
@@ -942,9 +939,7 @@ function ShareErrorToast({
             disabled={retrying}
             className="flex-1 h-9 rounded-xl bg-primary text-white text-xs font-semibold hover:brightness-110 transition-all disabled:opacity-70 flex items-center justify-center gap-1.5"
           >
-            {retrying && (
-              <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
-            )}
+            {retrying && <Spinner className="w-3 h-3 border" />}
             {retrying ? "Publishing…" : "Try again"}
           </button>
           <button
@@ -3543,7 +3538,7 @@ export default function Dashboard() {
                 >
                   {connectingGmail ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <Spinner />
                       Connecting…
                     </>
                   ) : (
@@ -3591,7 +3586,7 @@ export default function Dashboard() {
               >
                 {connectingGmail ? (
                   <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Connecting…
+                    <Spinner className="w-3.5 h-3.5 border" /> Connecting…
                   </>
                 ) : (
                   <>
@@ -3659,8 +3654,7 @@ export default function Dashboard() {
                     >
                       {digestState === "loading" ? (
                         <>
-                          <span className="w-3.5 h-3.5 rounded-full border border-current border-t-transparent animate-spin" />{" "}
-                          Sending…
+                          <Spinner className="w-3.5 h-3.5 border" /> Sending…
                         </>
                       ) : digestState === "sent" ? (
                         <>

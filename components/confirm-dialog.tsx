@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 // Replaces window.confirm for destructive actions, which is unstyled, unthemed,
 // and blocks the main thread. Follows SyncOverlay's backdrop + spring-in card
@@ -126,9 +127,7 @@ export function ConfirmDialog({
                 : "bg-primary hover:bg-primary/90"
             }`}
           >
-            {busy && (
-              <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
-            )}
+            {busy && <Spinner className="w-3 h-3 border" />}
             {busy ? (busyLabel ?? "Working…") : confirmLabel}
           </button>
         </div>
