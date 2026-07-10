@@ -2900,19 +2900,32 @@ export default function Dashboard() {
   // Summaries are private until shared — /share/[id] only serves rows with
   // is_public set. Copy the link immediately (clipboard writes must happen in
   // the click's user gesture, not after an await), then publish.
+  //
+  // The copy and the publish can therefore disagree: if publishing fails the
+  // user is holding a link that 404s for whoever they send it to. Say so,
+  // rather than let them find out from the recipient.
   const handleShare = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const url = `${window.location.origin}/share/${id}`;
       navigator.clipboard.writeText(url).catch(() => {});
       setCopying(`share-${id}`);
       setTimeout(() => setCopying(null), 2000);
       ph?.capture("article_shared");
 
-      fetch("/api/update-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, is_public: true }),
-      }).catch(() => {});
+      try {
+        const res = await fetch("/api/update-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, is_public: true }),
+        });
+        if (!res.ok) throw new Error("publish failed");
+      } catch {
+        setCopying(null);
+        window.alert(
+          "The link was copied, but publishing this story failed — anyone you send it to will see a Not Found page.\n\n" +
+            "Check your connection and press Share again.",
+        );
+      }
     },
     [ph],
   );
@@ -2921,8 +2934,9 @@ export default function Dashboard() {
   // that Pidgin actually loses inbox access, not that it stops asking.
   const handleDisconnect = useCallback(async () => {
     const confirmed = window.confirm(
-      "Disconnect Gmail?\n\nPidgin will immediately lose access to your inbox. " +
-        "Summaries already in your dashboard stay until you delete them.",
+      "Disconnect Gmail?\n\nPidgin will immediately lose access to your inbox, " +
+        "and no new stories will sync.\n\nYour saved summaries stay in your " +
+        "dashboard. You can reconnect at any time.",
     );
     if (!confirmed) return;
 
@@ -3154,6 +3168,18 @@ export default function Dashboard() {
   // ── Render ─────────────────────────────────────────────────────────────────
   if (!isLoaded) return <div className="min-h-screen bg-background" />;
 
+  // Disconnecting Gmail stops new syncs; it doesn't destroy what's already
+  // been collected. So "no Gmail" alone shouldn't send someone back to the
+  // onboarding screen and hide a dashboard full of their own summaries — only
+  // "no Gmail and nothing to show" should. Someone who disconnected keeps
+  // reading their archive behind a reconnect banner.
+  //
+  // Gated on !loading so the decision isn't made before summaries have
+  // arrived, which would flash onboarding at a returning disconnected user.
+  const hasHistory = summaries.length > 0;
+  const isDisconnected = gmailConnected === false;
+  const showOnboarding = isDisconnected && !loading && !hasHistory;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* ── Selection modal ─────────────────────────────────────────────── */}
@@ -3278,8 +3304,8 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* ── Onboarding (Gmail not yet connected) ─────────────────────────── */}
-      {gmailConnected === false && (
+      {/* ── Onboarding (Gmail never connected, nothing to show) ──────────── */}
+      {showOnboarding && (
         <main className="min-h-[calc(100vh-57px)] flex items-center justify-center px-4 py-16">
           <div className="w-full max-w-md">
             <div className="rounded-2xl border border-border bg-card p-8 shadow-xl shadow-black/20 space-y-7">
@@ -3376,9 +3402,42 @@ export default function Dashboard() {
         </main>
       )}
 
-      {/* ── Dashboard (Gmail connected or loading) ────────────────────────── */}
-      {gmailConnected !== false && (
+      {/* ── Dashboard (connected, loading, or disconnected-with-history) ──── */}
+      {!showOnboarding && (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 space-y-6">
+          {/* Only reachable after an explicit disconnect — the archive is
+              still readable, but nothing new will arrive until they reconnect. */}
+          {isDisconnected && hasHistory && (
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <Unplug className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <p className="text-sm text-foreground/80">
+                  Gmail is disconnected. Your saved summaries are still here —
+                  reconnect to sync new stories.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                disabled={connectingGmail}
+                onClick={() => {
+                  setConnectingGmail(true);
+                  window.location.href = "/api/auth/google";
+                }}
+                className="gap-1.5 h-8"
+              >
+                {connectingGmail ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Connecting…
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-3.5 h-3.5" /> Reconnect Gmail
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
           {/* ── Hero greeting ──────────────────────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
