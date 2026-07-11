@@ -8,7 +8,7 @@ import {
   RefreshCw,
   ArrowDownToLine,
   Download,
-  Sparkles,
+  PenLine,
   Linkedin,
   Copy,
   CheckCircle2,
@@ -1564,7 +1564,7 @@ function SocialPostPanel({
             </>
           ) : (
             <>
-              <Sparkles className="w-3.5 h-3.5" />
+              <PenLine className="w-3.5 h-3.5" />
               Draft
             </>
           )}
