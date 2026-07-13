@@ -355,6 +355,22 @@ export async function getDismissedEmails(userId: string): Promise<Array<{
   return data ?? [];
 }
 
+export async function getUserTimezone(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("user_tokens")
+    .select("timezone")
+    .eq("clerk_user_id", userId)
+    .single();
+  return data?.timezone ?? null;
+}
+
+export async function setUserTimezone(userId: string, timezone: string): Promise<void> {
+  await supabase
+    .from("user_tokens")
+    .update({ timezone })
+    .eq("clerk_user_id", userId);
+}
+
 export async function setLastSyncedAt(userId: string): Promise<void> {
   await supabase
     .from("user_tokens")

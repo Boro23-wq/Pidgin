@@ -6,9 +6,11 @@ import {
   supabase,
   getBlockedDomains,
   getDismissedEmailIds,
+  setUserTimezone,
 } from "@/lib/supabase";
 import { batchFlagEmails } from "@/lib/claude";
 import { isRateLimited } from "@/lib/rate-limit";
+import { localMidnight, isValidTimeZone } from "@/lib/dates";
 
 export const maxDuration = 60;
 
@@ -41,10 +43,20 @@ function getScanErrorMessage(error: unknown) {
   return "Could not scan Gmail right now. Please try again.";
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    let timeZone: string | undefined;
+    try {
+      const body = await req.json();
+      if (typeof body.timeZone === "string" && isValidTimeZone(body.timeZone)) {
+        timeZone = body.timeZone;
+      }
+    } catch {
+      // no body — fall back to server time below
+    }
 
     // Consumes Gmail API quota and a Claude classification pass per call.
     // Scanning is cheap enough to allow freely, but not unboundedly.
@@ -84,11 +96,12 @@ export async function POST() {
 
     const isFirstSync = (count ?? 0) === 0;
 
-    // Scan from midnight today — except on first sync, where a week-long
-    // window gives a brand-new user something to import.
-    const sinceDate = new Date();
-    sinceDate.setHours(0, 0, 0, 0);
-    if (isFirstSync) sinceDate.setDate(sinceDate.getDate() - 7);
+    // Scan from the user's local midnight — except on first sync, where a
+    // week-long window gives a brand-new user something to import. Persist
+    // the zone so the daily cron can anchor its window the same way.
+    const sinceDate = localMidnight(timeZone);
+    if (isFirstSync) sinceDate.setTime(sinceDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    if (timeZone) await setUserTimezone(userId, timeZone);
 
     const blockedDomains = await getBlockedDomains(userId);
 

@@ -15,6 +15,7 @@ import {
   type RecentTopic,
 } from "@/lib/supabase";
 import { isRateLimited } from "@/lib/rate-limit";
+import { localMidnight, isValidTimeZone } from "@/lib/dates";
 
 const BATCH_SIZE = 3;
 
@@ -43,9 +44,13 @@ export async function POST(req: Request) {
 
       try {
         let selectedEmailIds: string[] | undefined;
+        let timeZone: string | undefined;
         try {
           const body = await req.json();
           selectedEmailIds = Array.isArray(body.emailIds) ? body.emailIds : undefined;
+          if (typeof body.timeZone === "string" && isValidTimeZone(body.timeZone)) {
+            timeZone = body.timeZone;
+          }
         } catch {
           // no body
         }
@@ -84,10 +89,20 @@ export async function POST(req: Request) {
           const results = await Promise.all(
             selectedEmailIds.map((id) => getEmailById(tokens.accessToken, tokens.refreshToken, id))
           );
+          // The user explicitly selected these — a null (stub body, fetch
+          // error) must surface as a failure, not silently shrink the run.
+          results.forEach((e, i) => {
+            if (e === null) {
+              send({
+                type: "item-error",
+                title: `Email ${i + 1} of ${selectedEmailIds.length}`,
+                message: "Couldn't fetch this email from Gmail (empty or unreadable)",
+              });
+            }
+          });
           emails = results.filter((e) => e !== null);
         } else {
-          const since = new Date();
-          since.setHours(0, 0, 0, 0);
+          const since = localMidnight(timeZone);
           emails = await fetchNewsletterEmails(
             tokens.accessToken,
             tokens.refreshToken,

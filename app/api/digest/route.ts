@@ -1,20 +1,35 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { getTodaysSummaries, getTopicOccurrencesForKeys } from "@/lib/supabase";
+import { getTodaysSummaries, getTopicOccurrencesForKeys, getUserTimezone } from "@/lib/supabase";
 import { rankQualifyingTopics, buildDigestHtml } from "@/lib/digest";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { isRateLimited } from "@/lib/rate-limit";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 
-function formatDate(d: Date) {
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+function formatDate(d: Date, timeZone?: string | null) {
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    ...(timeZone ? { timeZone } : {}),
+  });
 }
 
 export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Sends a real email via Resend — cap re-sends so a stuck button or a
+  // looping client can't drain the send quota.
+  if (await isRateLimited(`digest-send:${userId}`, 3, 24 * 60 * 60 * 1000)) {
+    return NextResponse.json(
+      { error: "Digest already sent recently. Please try again later." },
+      { status: 429 },
+    );
+  }
 
   const user = await currentUser();
   const userEmail = user?.emailAddresses[0]?.emailAddress;
@@ -36,8 +51,9 @@ export async function POST() {
     return NextResponse.json({ sent: false, reason: "Nothing significant enough to send today" });
   }
 
-  const html = buildDigestHtml(qualifyingTopics, user?.firstName ?? "", userId, trends);
-  const dateStr = formatDate(new Date());
+  const timeZone = await getUserTimezone(userId);
+  const html = buildDigestHtml(qualifyingTopics, user?.firstName ?? "", userId, trends, timeZone);
+  const dateStr = formatDate(new Date(), timeZone);
 
   const { error } = await resend.emails.send({
     from: FROM,
