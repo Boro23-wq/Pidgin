@@ -7,6 +7,18 @@ function extractDomain(sourceEmail: string): string {
   return addr.split("@")[1]?.replace(/[>)\s]+$/, "") ?? "";
 }
 
+// Blocked entries are matched as domain suffixes against every future scan,
+// so a junk value like "a" or ".com" would block the user's entire feed.
+// Require a plausible registrable domain: dotted labels, no leading dot.
+const DOMAIN_RE = /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/;
+
+function normalizeDomain(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const domain = input.trim().toLowerCase().replace(/^@/, "");
+  if (domain.length > 253 || !DOMAIN_RE.test(domain)) return null;
+  return domain;
+}
+
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,9 +27,13 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Direct domain blocking (used from the scan/selection modal before summaries exist)
-    if (body.domain) {
-      await addBlockedSender(body.domain, userId);
-      return Response.json({ blocked: body.domain });
+    if (body.domain !== undefined) {
+      const domain = normalizeDomain(body.domain);
+      if (!domain) {
+        return Response.json({ error: "Invalid domain" }, { status: 400 });
+      }
+      await addBlockedSender(domain, userId);
+      return Response.json({ blocked: domain });
     }
 
     // Existing behavior: block by summaryId (looks up domain from the summary)

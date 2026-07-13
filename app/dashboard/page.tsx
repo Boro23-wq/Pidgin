@@ -152,21 +152,37 @@ function FilterSelect({
   }, []);
 
   return (
-    <div ref={ref} className="relative">
+    <div
+      ref={ref}
+      className="relative"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className="h-7 flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 pl-2 pr-2 text-xs text-foreground whitespace-nowrap flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-inset focus:border-primary/60"
       >
         {label}
         <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 inline-flex flex-col rounded-md border border-border bg-popover shadow-lg py-1">
+        <div
+          role="listbox"
+          className="absolute left-0 top-full mt-1 z-50 inline-flex flex-col rounded-md border border-border bg-popover shadow-lg py-1"
+        >
           {options.map((o) => (
             <button
               key={o.value}
               type="button"
+              role="option"
+              aria-selected={value === o.value}
               onClick={() => {
                 onChange(o.value);
                 setOpen(false);
@@ -495,6 +511,19 @@ function SyncOverlay({
   }, [importing]);
 
   const show = scanning || importing || !!stats || !!error;
+  const dismissible = !!stats || !!error;
+
+  // Escape mirrors the backdrop click — only in the dismissible end states,
+  // never mid-scan/import where dismissal isn't offered.
+  useEffect(() => {
+    if (!show || !dismissible) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onDismiss();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [show, dismissible, onDismiss]);
+
   if (!show) return null;
 
   const pct = progress
@@ -517,13 +546,16 @@ function SyncOverlay({
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={error ? "Sync error" : stats ? "Sync results" : "Sync in progress"}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={stats || error ? onDismiss : undefined}
+        onClick={dismissible ? onDismiss : undefined}
       />
       <motion.div
         className="relative z-10 w-full max-w-[300px] rounded-2xl border border-border bg-card px-6 py-6"
@@ -1121,6 +1153,15 @@ function NewsletterSelectionModal({
     };
   }, []);
 
+  // Keyboard parity with the backdrop click.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
   // Split into main vs flagged (auto-flagged minus user-unflagged)
   const autoFlaggedIds = useMemo(() => {
     const s = new Set<string>();
@@ -1155,6 +1196,9 @@ function NewsletterSelectionModal({
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Select newsletters to import"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
