@@ -108,6 +108,7 @@ interface SyncStats {
   skippedCount: number;
   deletedCount: number;
   nothingNew?: boolean;
+  firstScan?: boolean;
 }
 
 interface SyncProgress {
@@ -586,7 +587,9 @@ function SyncOverlay({
             </div>
             {stats.nothingNew ? (
               <p className="text-xs text-muted-foreground pl-[18px]">
-                No newsletters arrived yet today
+                {stats.firstScan
+                  ? "No newsletters found in the last 7 days"
+                  : "No newsletters arrived yet today"}
               </p>
             ) : stats.skippedCount > 0 ? (
               <p className="text-xs text-muted-foreground pl-[18px]">
@@ -2748,6 +2751,7 @@ export default function Dashboard() {
           skippedCount: 0,
           deletedCount: 0,
           nothingNew: true,
+          firstScan: data.isFirstSync ?? false,
         });
         return;
       }

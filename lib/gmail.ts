@@ -232,10 +232,13 @@ export async function fetchNewsletterEmails(
   const gmail = createGmailClient(accessToken, refreshToken);
 
   try {
-    let query = "category:promotions OR category:updates";
+    // Primary is included because many newsletters (Substack, personal lists)
+    // land there; isLikelyNewsletter screens out the personal mail it brings in.
+    let query = "category:promotions OR category:updates OR category:primary";
     if (sinceDate) {
-      const dateStr = sinceDate.toISOString().split("T")[0];
-      query += ` after:${dateStr}`;
+      // Epoch seconds: Gmail interprets a plain date in the account's timezone,
+      // which drifts a day off the server-computed midnight on UTC hosts.
+      query += ` after:${Math.floor(sinceDate.getTime() / 1000)}`;
     }
 
     // Fetch enough candidates to find maxResults newsletters after filtering junk.
@@ -303,10 +306,13 @@ export async function fetchNewsletterMetadata(
   const gmail = createGmailClient(accessToken, refreshToken);
 
   try {
-    let query = "category:promotions OR category:updates";
+    // Primary is included because many newsletters (Substack, personal lists)
+    // land there; isLikelyNewsletter screens out the personal mail it brings in.
+    let query = "category:promotions OR category:updates OR category:primary";
     if (sinceDate) {
-      const dateStr = sinceDate.toISOString().split("T")[0];
-      query += ` after:${dateStr}`;
+      // Epoch seconds: Gmail interprets a plain date in the account's timezone,
+      // which drifts a day off the server-computed midnight on UTC hosts.
+      query += ` after:${Math.floor(sinceDate.getTime() / 1000)}`;
     }
 
     const listMax = maxResults ? Math.max(maxResults * 3, 60) : 100;

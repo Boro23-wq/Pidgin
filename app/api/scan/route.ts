@@ -84,9 +84,11 @@ export async function POST() {
 
     const isFirstSync = (count ?? 0) === 0;
 
-    // Scan from midnight today — only today's newsletters.
+    // Scan from midnight today — except on first sync, where a week-long
+    // window gives a brand-new user something to import.
     const sinceDate = new Date();
     sinceDate.setHours(0, 0, 0, 0);
+    if (isFirstSync) sinceDate.setDate(sinceDate.getDate() - 7);
 
     const blockedDomains = await getBlockedDomains(userId);
 
