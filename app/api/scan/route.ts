@@ -7,6 +7,7 @@ import {
   getBlockedDomains,
   getDismissedEmailIds,
   getProcessedEmailIds,
+  setLastSyncedAt,
   setUserTimezone,
 } from "@/lib/supabase";
 import { batchFlagEmails } from "@/lib/claude";
@@ -129,6 +130,11 @@ export async function POST(req: Request) {
       blockedDomains,
       excludeHandled,
     );
+
+    // A completed scan counts as activity for the cron's engagement gate —
+    // otherwise a returning user who scans but imports nothing that day
+    // stays "inactive" and their daily auto-import remains paused.
+    await setLastSyncedAt(userId);
 
     if (newsletters.length === 0) {
       return Response.json({ newsletters: [], isFirstSync });
