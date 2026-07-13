@@ -2649,12 +2649,15 @@ export default function Dashboard() {
       .then((r) => r.json())
       .then((d) => {
         setGmailConnected(d.connected);
-        if (d.lastSyncedAt)
-          setLastSynced(
-            new Date(
-              d.lastSyncedAt + (d.lastSyncedAt.endsWith("Z") ? "" : "Z"),
-            ),
-          );
+        if (d.lastSyncedAt) {
+          // Postgres timestamptz serializes with a +00:00 offset, not "Z" —
+          // only append "Z" when the string carries no timezone at all, and
+          // never render an unparseable date.
+          const raw: string = d.lastSyncedAt;
+          const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
+          const parsed = new Date(hasOffset ? raw : raw + "Z");
+          if (!Number.isNaN(parsed.getTime())) setLastSynced(parsed);
+        }
       })
       .catch(() => setGmailConnected(false));
     fetch("/api/dismiss")
