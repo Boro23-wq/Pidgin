@@ -89,17 +89,25 @@ export async function getValidTokens(clerkUserId: string): Promise<UserTokens | 
     const { credentials } = await oauth2Client.refreshAccessToken();
     const newExpiry = new Date(credentials.expiry_date ?? Date.now() + 3600 * 1000);
 
+    // Google may rotate the refresh token on refresh; dropping the new one
+    // leaves a stale token stored, and the next refresh fails with
+    // invalid_grant — forcing an unnecessary Gmail reconnect.
+    const newRefreshToken = credentials.refresh_token ?? refreshToken;
+
     await supabase
       .from("user_tokens")
       .update({
         access_token: encryptToken(credentials.access_token!),
         token_expiry: newExpiry.toISOString(),
+        ...(credentials.refresh_token
+          ? { refresh_token: encryptToken(credentials.refresh_token) }
+          : {}),
       })
       .eq("clerk_user_id", clerkUserId);
 
     return {
       accessToken: credentials.access_token!,
-      refreshToken,
+      refreshToken: newRefreshToken,
       gmailAddress: data.gmail_address,
     };
   } catch {

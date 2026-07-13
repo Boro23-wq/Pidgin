@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { rankQualifyingTopics, buildDigestHtml } from "@/lib/digest";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { localMidnight } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -30,11 +31,16 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 const BATCH_SIZE = 3;
 
-function formatDate(d: Date) {
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+function formatDate(d: Date, timeZone?: string | null) {
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    ...(timeZone ? { timeZone } : {}),
+  });
 }
 
-async function processUser(clerkUserId: string, autoDigestEnabled: boolean): Promise<{
+async function processUser(clerkUserId: string, autoDigestEnabled: boolean, timeZone: string | null): Promise<{
   synced: number;
   sent: boolean;
   error?: string;
@@ -59,8 +65,9 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean): Pro
 
     // Fetch today's newsletters from Gmail
     const blockedDomains = await getBlockedDomains(clerkUserId);
-    const since = new Date();
-    since.setHours(0, 0, 0, 0);
+    // The user's local midnight (zone captured on their last scan); UTC
+    // midnight for users who haven't scanned since the column shipped.
+    const since = localMidnight(timeZone);
     const emails = await fetchNewsletterEmails(
       tokens.accessToken,
       tokens.refreshToken,
@@ -205,11 +212,11 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean): Pro
     const userEmail = user.emailAddresses[0]?.emailAddress;
     if (!userEmail) return { synced, sent: false, error: "no_email" };
 
-    const html = buildDigestHtml(qualifyingTopics, user.firstName ?? "", clerkUserId, trends);
+    const html = buildDigestHtml(qualifyingTopics, user.firstName ?? "", clerkUserId, trends, timeZone);
     const { error } = await resend.emails.send({
       from: FROM,
       to: userEmail,
-      subject: `Your Morning Brief — ${formatDate(new Date())}`,
+      subject: `Your Morning Brief — ${formatDate(new Date(), timeZone)}`,
       html,
     });
 
@@ -252,7 +259,7 @@ export async function GET(req: Request) {
   // inside processUser() on auto_digest_enabled.
   const { data: tokenRows, error: tokenErr } = await supabase
     .from("user_tokens")
-    .select("clerk_user_id, auto_digest_enabled");
+    .select("clerk_user_id, auto_digest_enabled, timezone");
 
   if (tokenErr) {
     console.error("[cron/digest] failed to fetch users:", tokenErr);
@@ -262,11 +269,12 @@ export async function GET(req: Request) {
   const users = (tokenRows ?? []).map((r) => ({
     userId: r.clerk_user_id as string,
     autoDigestEnabled: Boolean(r.auto_digest_enabled),
+    timeZone: (r.timezone as string | null) ?? null,
   }));
   console.log(`[cron/digest] processing ${users.length} users`);
 
   const results = await Promise.allSettled(
-    users.map((u) => processUser(u.userId, u.autoDigestEnabled))
+    users.map((u) => processUser(u.userId, u.autoDigestEnabled, u.timeZone))
   );
 
   const summary = results.map((r, i) => ({

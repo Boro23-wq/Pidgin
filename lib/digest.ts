@@ -1,5 +1,6 @@
 import type { Summary } from "@/lib/supabase";
 import { createSignedUid } from "@/lib/oauth-state";
+import { localHour } from "@/lib/dates";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pidgin.site";
 const BRAND = "#0da2e7";
@@ -77,8 +78,13 @@ export function rankQualifyingTopics(articles: Summary[], trends: TrendMap): [st
     .map(([key, items]) => [key, items]);
 }
 
-function formatDate(d: Date) {
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+function formatDate(d: Date, timeZone?: string | null) {
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    ...(timeZone ? { timeZone } : {}),
+  });
 }
 
 // Picks the article within a topic's items whose fields best represent the
@@ -102,10 +108,13 @@ export function buildDigestHtml(
   qualifyingTopics: [string, Summary[]][],
   userFirstName: string,
   userId: string,
-  trends: TrendMap
+  trends: TrendMap,
+  timeZone?: string | null
 ): string {
-  const dateStr = formatDate(new Date());
-  const hour = new Date().getHours();
+  const dateStr = formatDate(new Date(), timeZone);
+  // The user's wall-clock hour, not the server's — the cron fires at a fixed
+  // UTC time, which would greet everyone with the same (usually wrong) slot.
+  const hour = localHour(timeZone);
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   // HMAC-signed, not bare base64 — this link is clicked from an inbox with no
   // session, so the uid is the only thing asserting whose feedback it is.

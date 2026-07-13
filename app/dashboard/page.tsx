@@ -109,6 +109,7 @@ interface SyncStats {
   deletedCount: number;
   nothingNew?: boolean;
   firstScan?: boolean;
+  failedCount?: number;
 }
 
 interface SyncProgress {
@@ -591,9 +592,18 @@ function SyncOverlay({
                   ? "No newsletters found in the last 7 days"
                   : "No newsletters arrived yet today"}
               </p>
-            ) : stats.skippedCount > 0 ? (
+            ) : stats.skippedCount > 0 || (stats.failedCount ?? 0) > 0 ? (
               <p className="text-xs text-muted-foreground pl-[18px]">
-                {stats.skippedCount} already in your digest
+                {[
+                  stats.skippedCount > 0
+                    ? `${stats.skippedCount} already in your digest`
+                    : null,
+                  (stats.failedCount ?? 0) > 0
+                    ? `${stats.failedCount} couldn't be imported`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             ) : null}
             <div className="pl-[18px]">
@@ -2719,6 +2729,10 @@ export default function Dashboard() {
     try {
       const res = await fetch("/api/scan", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
         signal: controller.signal,
       });
       const data = await readJsonResponse<ScanResponse>(res);
@@ -2815,11 +2829,17 @@ export default function Dashboard() {
     setSyncErrorCode(null);
     setSyncProgress(null);
 
+    const failedTitles: string[] = [];
+    let importedCount = 0;
+
     try {
       const response = await fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailIds }),
+        body: JSON.stringify({
+          emailIds,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
       });
       if (!response.body) throw new Error("No response stream");
 
@@ -2851,12 +2871,16 @@ export default function Dashboard() {
                 total: data.total,
                 title: data.title,
               });
+            } else if (data.type === "item-error") {
+              failedTitles.push(data.title ?? "Unknown email");
             } else if (data.type === "complete") {
               const processedCount = data.processedCount ?? 0;
+              importedCount = processedCount;
               setSyncStats({
                 processedCount,
                 skippedCount: data.skippedCount ?? 0,
                 deletedCount: data.deletedCount ?? 0,
+                failedCount: failedTitles.length,
               });
               ph?.capture("newsletter_synced", {
                 count: processedCount,
@@ -2874,6 +2898,9 @@ export default function Dashboard() {
             } else if (data.type === "error") {
               setSyncError(data.message);
               setSyncErrorCode(data.code ?? null);
+              // Emails processed before the failure are already saved
+              // server-side — show them instead of hiding them until reload.
+              await fetchSummaries();
             }
           } catch {
             // skip malformed SSE line
@@ -2882,10 +2909,11 @@ export default function Dashboard() {
       }
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : "Import failed");
+      await fetchSummaries().catch(() => {});
     } finally {
       setSyncing(false);
       setSyncProgress(null);
-      setLastSynced(new Date());
+      if (importedCount > 0) setLastSynced(new Date());
     }
   };
 

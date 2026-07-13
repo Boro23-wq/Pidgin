@@ -146,35 +146,51 @@ function isLikelyNewsletter(
   );
   if (!hasUnsubscribe) return false;
 
-  const fromLower = from.toLowerCase();
   const subjectLower = subject.toLowerCase();
+  const { fromEmail, domain } = parseFrom(from);
+  const senderDomain = domain.toLowerCase();
+  const localPart = fromEmail.split("@")[0]?.toLowerCase() ?? "";
 
-  const blockedSenders = [
-    // Shipping / logistics
-    "amazon", "fedex", "ups", "usps", "dhl", "doordash", "uber", "lyft",
-    "airbnb", "booking.com", "expedia", "hotels.com",
+  // Matched against the sender's domain only (exact or subdomain), never the
+  // display name — substring matching over the whole From header blocked
+  // legitimate senders (e.g. "ups" matched groups.io, "citi" matched publicity).
+  const blockedSenderDomains = [
+    // Shipping / logistics / travel
+    "amazon.com", "fedex.com", "ups.com", "usps.com", "dhl.com",
+    "doordash.com", "uber.com", "lyft.com", "airbnb.com", "booking.com",
+    "expedia.com", "hotels.com",
     // Finance / banking
-    "chase", "mcmap.chase", "bankofamerica", "wellsfargo", "citi", "capitalone",
-    "discover", "synchrony", "nerdwallet", "credit union", "experian", "equifax",
+    "chase.com", "bankofamerica.com", "wellsfargo.com", "citi.com",
+    "citibank.com", "capitalone.com", "discover.com", "synchrony.com",
+    "synchronybank.com", "nerdwallet.com", "experian.com", "equifax.com",
     // Job sites, ATS & job-search tools
-    "linkedin.com", "jobs-noreply", "jobalerts-noreply", "indeed.com",
-    "glassdoor", "handshake", "ashbyhq.com", "greenhouse.io", "lever.co",
-    "workday.com", "smartrecruiters", "icims.com", "bamboohr",
+    "linkedin.com", "indeed.com", "glassdoor.com", "joinhandshake.com",
+    "ashbyhq.com", "greenhouse.io", "lever.co", "workday.com",
+    "myworkday.com", "smartrecruiters.com", "icims.com", "bamboohr.com",
     "jackapplies.com", "searchwithjack.com",
     // Events / tickets / sports
-    "eventbrite", "ticketmaster", "meetup.com", "mlbemail.com",
+    "eventbrite.com", "ticketmaster.com", "meetup.com", "mlbemail.com",
     "nba.com", "nfl.com", "nhl.com",
     // Retail / coupons
-    "groupon", "coupons.com", "retailmenot",
+    "groupon.com", "coupons.com", "retailmenot.com",
     // Enterprise marketing
-    "enterprise.com", "enterprise-rent",
-    // Institutional / school emails
-    ".edu",
+    "enterprise.com",
     // Auto dealerships
     "alstspecials.com", "dealerfire.com", "dealer.com", "dealerinspire.com",
+    // Institutional / school emails (TLD)
+    "edu",
   ];
-  if (blockedSenders.some((d) => fromLower.includes(d))) return false;
-  if (blockedDomains.some((d) => fromLower.includes(d))) return false;
+  const domainMatches = (blocked: string) => {
+    const b = blocked.toLowerCase().replace(/^@/, "");
+    return senderDomain === b || senderDomain.endsWith(`.${b}`);
+  };
+  if (blockedSenderDomains.some(domainMatches)) return false;
+  if (blockedDomains.some(domainMatches)) return false;
+
+  // ATS/job-board blasts come from many custom domains but share these
+  // local parts.
+  const blockedLocalParts = ["jobs-noreply", "jobalerts-noreply"];
+  if (blockedLocalParts.includes(localPart)) return false;
 
   const blockedSubjects = [
     "your application was sent", "thanks for applying", "application received",
@@ -183,9 +199,7 @@ function isLikelyNewsletter(
     "payment confirmation", "statement available", "your statement",
     "party guide", "% off", "save big", "flash sale", "enter to win",
     "you're eligible", "cash bonus", "preapproval",
-    // Event invites / school emails
-    "join us", "you're invited", "game night", "happy hour",
-    "register now", "rsvp", "save the date",
+    "you're invited",
   ];
   if (blockedSubjects.some((p) => subjectLower.includes(p))) return false;
 
@@ -219,6 +233,20 @@ function parseFrom(from: string): { fromName: string; fromEmail: string; domain:
   return { fromName, fromEmail, domain };
 }
 
+// Primary is included because many newsletters (Substack, personal lists)
+// land there; isLikelyNewsletter screens out the personal mail it brings in.
+// The categories must be parenthesized — Gmail's implicit AND binds tighter
+// than OR, so without grouping `after:` would only constrain the last term.
+// Epoch seconds because Gmail reads a plain date in the account's timezone,
+// which drifts a day off the server-computed midnight on UTC hosts.
+function buildNewsletterQuery(sinceDate?: Date): string {
+  let query = "(category:promotions OR category:updates OR category:primary)";
+  if (sinceDate) {
+    query += ` after:${Math.floor(sinceDate.getTime() / 1000)}`;
+  }
+  return query;
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -232,14 +260,7 @@ export async function fetchNewsletterEmails(
   const gmail = createGmailClient(accessToken, refreshToken);
 
   try {
-    // Primary is included because many newsletters (Substack, personal lists)
-    // land there; isLikelyNewsletter screens out the personal mail it brings in.
-    let query = "category:promotions OR category:updates OR category:primary";
-    if (sinceDate) {
-      // Epoch seconds: Gmail interprets a plain date in the account's timezone,
-      // which drifts a day off the server-computed midnight on UTC hosts.
-      query += ` after:${Math.floor(sinceDate.getTime() / 1000)}`;
-    }
+    const query = buildNewsletterQuery(sinceDate);
 
     // Fetch enough candidates to find maxResults newsletters after filtering junk.
     // Gmail inbox has many non-newsletters (job alerts, bank promos) that pass
@@ -306,14 +327,7 @@ export async function fetchNewsletterMetadata(
   const gmail = createGmailClient(accessToken, refreshToken);
 
   try {
-    // Primary is included because many newsletters (Substack, personal lists)
-    // land there; isLikelyNewsletter screens out the personal mail it brings in.
-    let query = "category:promotions OR category:updates OR category:primary";
-    if (sinceDate) {
-      // Epoch seconds: Gmail interprets a plain date in the account's timezone,
-      // which drifts a day off the server-computed midnight on UTC hosts.
-      query += ` after:${Math.floor(sinceDate.getTime() / 1000)}`;
-    }
+    const query = buildNewsletterQuery(sinceDate);
 
     const listMax = maxResults ? Math.max(maxResults * 3, 60) : 100;
     const res = await gmail.users.messages.list({ userId: "me", q: query, maxResults: listMax });
