@@ -6,6 +6,7 @@ import {
   supabase,
   getBlockedDomains,
   getDismissedEmailIds,
+  getProcessedEmailIds,
   setUserTimezone,
 } from "@/lib/supabase";
 import { batchFlagEmails } from "@/lib/claude";
@@ -88,7 +89,8 @@ export async function POST(req: Request) {
         { status: 400 },
       );
 
-    // Detect first sync by checking if any summaries exist for this user.
+    // Kept for the client's first-run copy only — the window no longer
+    // depends on it.
     const { count } = await supabase
       .from("summaries")
       .select("id", { count: "exact", head: true })
@@ -96,44 +98,41 @@ export async function POST(req: Request) {
 
     const isFirstSync = (count ?? 0) === 0;
 
-    // Scan from the user's local midnight — except on first sync, where a
-    // week-long window gives a brand-new user something to import. Persist
-    // the zone so the daily cron can anchor its window the same way.
+    // Rolling 7-day window anchored to the user's local midnight. Anything
+    // unprocessed keeps resurfacing until imported or dismissed (de-dup
+    // below hides the rest), so newsletters that arrive on days the user
+    // never opens the app — or after the daily cron already ran — aren't
+    // permanently lost the way a today-only window lost them. Persist the
+    // zone so the daily cron can anchor its window the same way.
     const sinceDate = localMidnight(timeZone);
-    if (isFirstSync) sinceDate.setTime(sinceDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    sinceDate.setTime(sinceDate.getTime() - 7 * 24 * 60 * 60 * 1000);
     if (timeZone) await setUserTimezone(userId, timeZone);
 
     const blockedDomains = await getBlockedDomains(userId);
 
-    const allPreviews = await fetchNewsletterMetadata(
+    // Already-imported and dismissed emails are excluded before their
+    // metadata is ever fetched — over a week-long window most candidates
+    // are ones the user has already handled.
+    const excludeHandled = async (ids: string[]) => {
+      const [processed, dismissed] = await Promise.all([
+        getProcessedEmailIds(ids, userId),
+        getDismissedEmailIds(ids, userId),
+      ]);
+      return new Set([...processed, ...dismissed]);
+    };
+
+    const newsletters = await fetchNewsletterMetadata(
       tokens.accessToken,
       tokens.refreshToken,
       sinceDate,
       50,
       blockedDomains,
+      excludeHandled,
     );
 
-    // Filter out emails already processed (already in summaries table).
-    if (allPreviews.length === 0) {
+    if (newsletters.length === 0) {
       return Response.json({ newsletters: [], isFirstSync });
     }
-
-    const emailIds = allPreviews.map((n) => n.id);
-    const { data: processed } = await supabase
-      .from("summaries")
-      .select("source_email_id")
-      .eq("user_id", userId)
-      .in("source_email_id", emailIds);
-
-    const processedSet = new Set(
-      (processed ?? []).map(
-        (r: { source_email_id: string }) => r.source_email_id,
-      ),
-    );
-    const dismissedSet = await getDismissedEmailIds(emailIds, userId);
-    const newsletters = allPreviews.filter(
-      (n) => !processedSet.has(n.id) && !dismissedSet.has(n.id),
-    );
 
     // Batch-classify with Claude Haiku; 12-second timeout falls back to client-side regex.
     // null means "timed out" — don't set flagged so the client regex runs instead.

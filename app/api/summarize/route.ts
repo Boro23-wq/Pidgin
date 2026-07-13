@@ -9,6 +9,8 @@ import {
   deleteOldSummaries,
   clearOldRawContent,
   getBlockedDomains,
+  getDismissedEmailIds,
+  getProcessedEmailIds,
   upsertTopicOccurrence,
   getRecentTopics,
   setLastSyncedAt,
@@ -102,13 +104,23 @@ export async function POST(req: Request) {
           });
           emails = results.filter((e) => e !== null);
         } else {
+          // Rolling 7-day window, matching /api/scan — already-handled
+          // emails are excluded up front so the cap is spent on new ones.
           const since = localMidnight(timeZone);
+          since.setTime(since.getTime() - 7 * 24 * 60 * 60 * 1000);
           emails = await fetchNewsletterEmails(
             tokens.accessToken,
             tokens.refreshToken,
             since,
             10,
-            blockedDomains
+            blockedDomains,
+            async (ids) => {
+              const [processed, dismissed] = await Promise.all([
+                getProcessedEmailIds(ids, userId),
+                getDismissedEmailIds(ids, userId),
+              ]);
+              return new Set([...processed, ...dismissed]);
+            }
           );
         }
 

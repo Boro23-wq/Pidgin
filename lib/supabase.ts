@@ -355,6 +355,24 @@ export async function getDismissedEmails(userId: string): Promise<Array<{
   return data ?? [];
 }
 
+// Which of these Gmail message ids already have summaries. Fails closed to
+// "none processed" — the per-email isEmailProcessed check downstream is the
+// safety net against duplicates.
+export async function getProcessedEmailIds(
+  emailIds: string[],
+  userId: string,
+): Promise<Set<string>> {
+  if (emailIds.length === 0) return new Set();
+  const { data } = await supabase
+    .from("summaries")
+    .select("source_email_id")
+    .eq("user_id", userId)
+    .in("source_email_id", emailIds);
+  return new Set(
+    (data ?? []).map((r: { source_email_id: string }) => r.source_email_id),
+  );
+}
+
 export async function getUserTimezone(userId: string): Promise<string | null> {
   const { data } = await supabase
     .from("user_tokens")
