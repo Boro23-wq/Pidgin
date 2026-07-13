@@ -17,6 +17,25 @@ export async function POST(req: Request) {
     return Response.json({ error: "Bad request" }, { status: 400 });
   }
 
+  // A scan surfaces at most 50 newsletters, so no legitimate client sends
+  // more than that per call; unbounded arrays are just self-inflicted DB
+  // bloat. Field lengths bounded for the same reason.
+  const MAX_EMAILS = 100;
+  const str = (v: unknown, max: number) =>
+    typeof v === "string" ? v.slice(0, max) : undefined;
+  emails = emails
+    .slice(0, MAX_EMAILS)
+    .filter((e) => typeof e?.id === "string" && e.id.length > 0 && e.id.length <= 64)
+    .map((e) => ({
+      id: e.id,
+      fromName: str(e.fromName, 256),
+      fromEmail: str(e.fromEmail, 320),
+      subject: str(e.subject, 1000),
+    }));
+  if (emails.length === 0) {
+    return Response.json({ error: "Bad request" }, { status: 400 });
+  }
+
   await dismissEmails(emails, userId);
   return Response.json({ ok: true });
 }

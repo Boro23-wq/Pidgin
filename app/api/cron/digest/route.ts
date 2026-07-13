@@ -284,28 +284,52 @@ export async function GET(req: Request) {
   // inside processUser() on auto_digest_enabled.
   const { data: tokenRows, error: tokenErr } = await supabase
     .from("user_tokens")
-    .select("clerk_user_id, auto_digest_enabled, timezone");
+    .select("clerk_user_id, auto_digest_enabled, timezone, last_synced_at");
 
   if (tokenErr) {
     console.error("[cron/digest] failed to fetch users:", tokenErr);
     return NextResponse.json({ error: "DB error" }, { status: 500 });
   }
 
-  const users = (tokenRows ?? []).map((r) => ({
+  // Engagement gate: digest subscribers always process (they asked for the
+  // email), but for everyone else the daily Claude extraction is only worth
+  // it if they've actually synced recently. Without this, an account that
+  // connected Gmail once and never returned costs extraction spend every
+  // day forever.
+  const INACTIVE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+  const allUsers = (tokenRows ?? []).map((r) => ({
     userId: r.clerk_user_id as string,
     autoDigestEnabled: Boolean(r.auto_digest_enabled),
     timeZone: (r.timezone as string | null) ?? null,
+    lastSyncedAt: r.last_synced_at ? new Date(r.last_synced_at).getTime() : 0,
   }));
-  console.log(`[cron/digest] processing ${users.length} users`);
-
-  const results = await Promise.allSettled(
-    users.map((u) => processUser(u.userId, u.autoDigestEnabled, u.timeZone))
+  const users = allUsers.filter(
+    (u) =>
+      u.autoDigestEnabled || Date.now() - u.lastSyncedAt < INACTIVE_AFTER_MS,
+  );
+  console.log(
+    `[cron/digest] processing ${users.length} of ${allUsers.length} users (${allUsers.length - users.length} inactive skipped)`,
   );
 
-  const summary = results.map((r, i) => ({
-    userId: users[i].userId,
-    ...(r.status === "fulfilled" ? r.value : { synced: 0, sent: false, error: String(r.reason) }),
-  }));
+  // Chunked so the fan-out to Gmail and Claude stays bounded as the user
+  // base grows — all-at-once parallelism hits provider rate limits and
+  // holds every user's emails in memory simultaneously.
+  const CONCURRENCY = 5;
+  const summary: Array<{ userId: string; synced: number; sent: boolean; error?: string }> = [];
+  for (let i = 0; i < users.length; i += CONCURRENCY) {
+    const chunk = users.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      chunk.map((u) => processUser(u.userId, u.autoDigestEnabled, u.timeZone))
+    );
+    results.forEach((r, j) => {
+      summary.push({
+        userId: chunk[j].userId,
+        ...(r.status === "fulfilled"
+          ? r.value
+          : { synced: 0, sent: false, error: String(r.reason) }),
+      });
+    });
+  }
 
   return NextResponse.json({ ok: true, users: summary });
 }
