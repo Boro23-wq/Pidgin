@@ -5,6 +5,8 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { fetchNewsletterEmails } from "@/lib/gmail";
 import { extractNewsletterStories } from "@/lib/claude";
 import { getValidTokens, GmailReconnectRequiredError } from "@/lib/tokens";
+import * as Sentry from "@sentry/nextjs";
+import { withRetry } from "@/lib/retry";
 import {
   saveSummary,
   isEmailProcessed,
@@ -13,6 +15,7 @@ import {
   getBlockedDomains,
   getTodaysSummaries,
   getDismissedEmailIds,
+  getProcessedEmailIds,
   upsertTopicOccurrence,
   getTopicOccurrencesForKeys,
   getRecentTopics,
@@ -63,30 +66,35 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean, time
     await clearOldRawContent(clerkUserId, 7);
     await deleteOldSummaries(clerkUserId, 180);
 
-    // Fetch today's newsletters from Gmail
+    // Fetch unprocessed newsletters from Gmail over a rolling 7-day window
+    // (anchored to the user's local midnight; zone captured on their last
+    // scan, UTC fallback). The wide window makes capped or failed runs
+    // self-healing: whatever a run doesn't process is still inside the next
+    // run's window, instead of aging out at midnight.
     const blockedDomains = await getBlockedDomains(clerkUserId);
-    // The user's local midnight (zone captured on their last scan); UTC
-    // midnight for users who haven't scanned since the column shipped.
     const since = localMidnight(timeZone);
-    const emails = await fetchNewsletterEmails(
-      tokens.accessToken,
-      tokens.refreshToken,
-      since,
-      10,
-      blockedDomains
-    );
-
-    // Filter out emails the user explicitly dismissed during manual syncs
-    const emailIds = emails.map((e) => e.id);
-    const dismissedIds = await getDismissedEmailIds(emailIds, clerkUserId);
-    const dismissedSet = new Set(dismissedIds);
+    since.setTime(since.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     // No sender allow-list here by design — every connected newsletter is
     // eligible to be scanned. Importance signal (see lib/digest.ts) decides
     // what's worth emailing, not a manually pre-approved sender list.
     // blocked_senders (via getBlockedDomains above) remains the only
-    // exclusion mechanism.
-    const toProcess = emails.filter((e) => !dismissedSet.has(e.id));
+    // exclusion mechanism. Already-imported and dismissed emails are
+    // excluded before their bodies are downloaded.
+    const toProcess = await fetchNewsletterEmails(
+      tokens.accessToken,
+      tokens.refreshToken,
+      since,
+      20,
+      blockedDomains,
+      async (ids) => {
+        const [processed, dismissed] = await Promise.all([
+          getProcessedEmailIds(ids, clerkUserId),
+          getDismissedEmailIds(ids, clerkUserId),
+        ]);
+        return new Set([...processed, ...dismissed]);
+      }
+    );
 
     // Count today's existing summaries per source — skip sources that already have ≥2
     const today = new Date().toISOString().split("T")[0];
@@ -124,11 +132,17 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean, time
             const alreadyProcessed = await isEmailProcessed(email.id, clerkUserId);
             if (alreadyProcessed) return newTopics;
 
-            const stories = await extractNewsletterStories(
-              email.body.slice(0, CONTENT_CAP),
-              email.subject,
-              email.links,
-              topicsSnapshot
+            // Retried because a transient Claude failure here used to mean
+            // that email silently never got summarized — the today-only
+            // window aged it out before the next run. The window is wider
+            // now, but same-day delivery still depends on this succeeding.
+            const stories = await withRetry(() =>
+              extractNewsletterStories(
+                email.body.slice(0, CONTENT_CAP),
+                email.subject,
+                email.links,
+                topicsSnapshot
+              )
             );
             for (const story of stories) {
               const saved = await saveSummary(
@@ -168,6 +182,9 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean, time
             }
           } catch (err) {
             console.error(`[cron/digest] email error for ${clerkUserId}:`, err);
+            Sentry.captureException(err, {
+              tags: { source: "cron-digest", stage: "email" },
+            });
           }
           return newTopics;
         })
@@ -231,6 +248,14 @@ async function processUser(clerkUserId: string, autoDigestEnabled: boolean, time
     return { synced, sent: true };
   } catch (err) {
     console.error(`[cron/digest] fatal error for ${clerkUserId}:`, err);
+    // Reconnect-required is expected churn (revoked tokens); everything else
+    // is a real failure that was previously invisible outside the response
+    // body nobody reads.
+    if (!(err instanceof GmailReconnectRequiredError)) {
+      Sentry.captureException(err, {
+        tags: { source: "cron-digest", stage: "user" },
+      });
+    }
     return { synced: 0, sent: false, error: String(err) };
   }
 }

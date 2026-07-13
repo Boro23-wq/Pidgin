@@ -247,6 +247,46 @@ function buildNewsletterQuery(sinceDate?: Date): string {
   return query;
 }
 
+// How many messages.list pages to walk. A single page (≤100 ids, newest
+// first) can be filled entirely by personal Primary mail on a busy inbox,
+// silently hiding real newsletters just past the cap.
+const MAX_LIST_PAGES = 3;
+
+// Lists candidate message ids for the query, following pagination, and drops
+// excluded ids (already imported/dismissed) page by page — so the exclusion
+// happens before any per-message fetch is spent on them.
+async function listCandidateIds(
+  gmail: ReturnType<typeof createGmailClient>,
+  query: string,
+  pageSize: number,
+  exclude?: (ids: string[]) => Promise<Set<string>>
+): Promise<string[]> {
+  const kept: string[] = [];
+  let pageToken: string | undefined;
+
+  for (let page = 0; page < MAX_LIST_PAGES; page++) {
+    const res = await gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults: pageSize,
+      ...(pageToken ? { pageToken } : {}),
+    });
+    const ids = (res.data.messages ?? [])
+      .map((m) => m.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (ids.length > 0) {
+      const skip = exclude ? await exclude(ids) : null;
+      kept.push(...(skip ? ids.filter((id) => !skip.has(id)) : ids));
+    }
+
+    pageToken = res.data.nextPageToken ?? undefined;
+    if (!pageToken) break;
+  }
+
+  return kept;
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -255,7 +295,8 @@ export async function fetchNewsletterEmails(
   refreshToken: string,
   sinceDate?: Date,
   maxResults = 10,
-  blockedDomains: string[] = []
+  blockedDomains: string[] = [],
+  exclude?: (ids: string[]) => Promise<Set<string>>
 ): Promise<EmailData[]> {
   const gmail = createGmailClient(accessToken, refreshToken);
 
@@ -265,22 +306,21 @@ export async function fetchNewsletterEmails(
     // Fetch enough candidates to find maxResults newsletters after filtering junk.
     // Gmail inbox has many non-newsletters (job alerts, bank promos) that pass
     // the List-Unsubscribe check — we need a big enough pool to filter through.
-    const res = await gmail.users.messages.list({
-      userId: "me",
-      q: query,
-      maxResults: Math.max(maxResults * 10, 30),
-    });
-
-    const messages = res.data.messages || [];
-    console.log("[gmail] query:", query, "| candidates:", messages.length);
+    const candidateIds = await listCandidateIds(
+      gmail,
+      query,
+      Math.max(maxResults * 10, 30),
+      exclude,
+    );
+    console.log("[gmail] query:", query, "| candidates:", candidateIds.length);
     const emailData: EmailData[] = [];
 
-    for (const message of messages) {
+    for (const id of candidateIds) {
       if (emailData.length >= maxResults) break;
 
       const msg = await gmail.users.messages.get({
         userId: "me",
-        id: message.id!,
+        id,
         format: "full",
       });
 
@@ -298,7 +338,7 @@ export async function fetchNewsletterEmails(
 
       const rawHtml = extractRawHtml(msg.data.payload);
       emailData.push({
-        id: message.id!,
+        id,
         subject,
         from,
         body: body.substring(0, 8000),
@@ -322,7 +362,8 @@ export async function fetchNewsletterMetadata(
   refreshToken: string,
   sinceDate?: Date,
   maxResults?: number,
-  blockedDomains: string[] = []
+  blockedDomains: string[] = [],
+  exclude?: (ids: string[]) => Promise<Set<string>>
 ): Promise<EmailPreview[]> {
   const gmail = createGmailClient(accessToken, refreshToken);
 
@@ -330,34 +371,30 @@ export async function fetchNewsletterMetadata(
     const query = buildNewsletterQuery(sinceDate);
 
     const listMax = maxResults ? Math.max(maxResults * 3, 60) : 100;
-    const res = await gmail.users.messages.list({ userId: "me", q: query, maxResults: listMax });
-    const messages = res.data.messages || [];
-    console.log("[gmail/scan] query:", query, "| candidates:", messages.length);
+    const candidateIds = await listCandidateIds(gmail, query, listMax, exclude);
+    console.log("[gmail/scan] query:", query, "| candidates:", candidateIds.length);
 
     const previews: EmailPreview[] = [];
     const batchSize = 12;
 
-    for (let i = 0; i < messages.length; i += batchSize) {
+    for (let i = 0; i < candidateIds.length; i += batchSize) {
       if (maxResults && previews.length >= maxResults) break;
 
-      const batch = messages.slice(i, i + batchSize);
+      const batch = candidateIds.slice(i, i + batchSize);
       const batchMessages = await Promise.all(
-        batch.map(async (message) => {
-          if (!message.id) return null;
-
+        batch.map(async (id) => {
           const msg = await gmail.users.messages.get({
             userId: "me",
-            id: message.id,
+            id,
             format: "metadata",
             metadataHeaders: ["Subject", "From", "List-Unsubscribe", "List-Archive"],
           });
 
-          return { id: message.id, data: msg.data };
+          return { id, data: msg.data };
         }),
       );
 
       for (const msg of batchMessages) {
-        if (!msg) continue;
         if (maxResults && previews.length >= maxResults) break;
 
         const headers = msg.data.payload?.headers || [];

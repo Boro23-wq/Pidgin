@@ -590,7 +590,7 @@ function SyncOverlay({
               <p className="text-xs text-muted-foreground pl-[18px]">
                 {stats.firstScan
                   ? "No newsletters found in the last 7 days"
-                  : "No newsletters arrived yet today"}
+                  : "Nothing new in the last 7 days"}
               </p>
             ) : stats.skippedCount > 0 || (stats.failedCount ?? 0) > 0 ? (
               <p className="text-xs text-muted-foreground pl-[18px]">
@@ -1179,13 +1179,13 @@ function NewsletterSelectionModal({
             <p className="text-sm font-semibold">
               {newsletters.length === 0
                 ? "No new newsletters"
-                : `Found ${newsletters.length} newsletter${newsletters.length !== 1 ? "s" : ""}${isFirstSync ? " today" : ""}`}
+                : `Found ${newsletters.length} newsletter${newsletters.length !== 1 ? "s" : ""} this week`}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {newsletters.length > 0
                 ? "Tap to select. Block senders you don't want."
                 : isFirstSync
-                  ? "No newsletters landed in your inbox today. Check back tomorrow."
+                  ? "No newsletters landed in your inbox this week. Check back tomorrow."
                   : "All caught up — nothing new since your last sync."}
             </p>
           </div>
